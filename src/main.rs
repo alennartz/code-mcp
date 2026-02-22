@@ -8,8 +8,9 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Generate { specs, output } => {
-            println!("Generate: {:?} -> {:?}", specs, output);
-            todo!("generate command")
+            code_mcp::codegen::generate::generate(&specs, &output)?;
+            println!("Generated output to {}", output.display());
+            Ok(())
         }
         Command::Serve {
             dir,
