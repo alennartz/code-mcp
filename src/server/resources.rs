@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use rmcp::model::{
-    AnnotateAble, RawResource, ReadResourceResult, Resource, ResourceContents,
-};
+use rmcp::model::{AnnotateAble, RawResource, ReadResourceResult, Resource, ResourceContents};
 
 use crate::codegen::annotations::{render_function_annotation, render_schema_annotation};
 use crate::codegen::manifest::Manifest;
@@ -40,10 +38,7 @@ pub fn build_resource_list(manifest: &Manifest) -> Vec<Resource> {
                 uri: format!("sdk://{}/functions", api.name),
                 name: format!("{} Functions", api.name),
                 title: Some(format!("All {} functions", api.name)),
-                description: Some(format!(
-                    "All function signatures for the {} API",
-                    api.name
-                )),
+                description: Some(format!("All function signatures for the {} API", api.name)),
                 mime_type: Some("text/plain".to_string()),
                 size: None,
                 icons: None,
@@ -219,9 +214,7 @@ mod tests {
     use crate::codegen::annotations::{render_function_annotation, render_schema_annotation};
     use crate::server::tests::test_manifest;
 
-    fn build_caches(
-        manifest: &Manifest,
-    ) -> (HashMap<String, String>, HashMap<String, String>) {
+    fn build_caches(manifest: &Manifest) -> (HashMap<String, String>, HashMap<String, String>) {
         let annotation_cache: HashMap<String, String> = manifest
             .functions
             .iter()
@@ -261,8 +254,7 @@ mod tests {
     fn test_read_overview_resource() {
         let manifest = test_manifest();
         let (ac, sc) = build_caches(&manifest);
-        let result =
-            read_resource("sdk://petstore/overview", &manifest, &ac, &sc).unwrap();
+        let result = read_resource("sdk://petstore/overview", &manifest, &ac, &sc).unwrap();
 
         assert_eq!(result.contents.len(), 1);
         if let ResourceContents::TextResourceContents { text, .. } = &result.contents[0] {
@@ -278,13 +270,8 @@ mod tests {
     fn test_read_function_resource() {
         let manifest = test_manifest();
         let (ac, sc) = build_caches(&manifest);
-        let result = read_resource(
-            "sdk://petstore/functions/list_pets",
-            &manifest,
-            &ac,
-            &sc,
-        )
-        .unwrap();
+        let result =
+            read_resource("sdk://petstore/functions/list_pets", &manifest, &ac, &sc).unwrap();
 
         assert_eq!(result.contents.len(), 1);
         if let ResourceContents::TextResourceContents { text, .. } = &result.contents[0] {
@@ -299,8 +286,7 @@ mod tests {
     fn test_read_schema_resource() {
         let manifest = test_manifest();
         let (ac, sc) = build_caches(&manifest);
-        let result =
-            read_resource("sdk://petstore/schemas/Pet", &manifest, &ac, &sc).unwrap();
+        let result = read_resource("sdk://petstore/schemas/Pet", &manifest, &ac, &sc).unwrap();
 
         assert_eq!(result.contents.len(), 1);
         if let ResourceContents::TextResourceContents { text, .. } = &result.contents[0] {

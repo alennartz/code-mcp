@@ -2,8 +2,8 @@ use std::path::Path;
 
 use anyhow::{Context, Result};
 use openapiv3::{
-    OpenAPI, Parameter, ParameterSchemaOrContent, ReferenceOr, Schema, SchemaKind,
-    SecurityScheme, Type,
+    OpenAPI, Parameter, ParameterSchemaOrContent, ReferenceOr, Schema, SchemaKind, SecurityScheme,
+    Type,
 };
 
 use super::manifest::{
@@ -71,10 +71,7 @@ fn extract_api_config(spec: &OpenAPI, api_name: &str) -> ApiConfig {
         .map(|s| s.url.clone())
         .unwrap_or_else(|| "/".to_string());
 
-    let auth = spec
-        .components
-        .as_ref()
-        .and_then(extract_auth_config);
+    let auth = spec.components.as_ref().and_then(extract_auth_config);
 
     ApiConfig {
         name: api_name.to_string(),
@@ -229,10 +226,7 @@ fn fallback_function_name(method: &str, path: &str) -> String {
     parts.join("_")
 }
 
-fn extract_parameters(
-    params: &[ReferenceOr<Parameter>],
-    spec: &OpenAPI,
-) -> Result<Vec<ParamDef>> {
+fn extract_parameters(params: &[ReferenceOr<Parameter>], spec: &OpenAPI) -> Result<Vec<ParamDef>> {
     let mut result = Vec::new();
 
     for param_ref in params {
@@ -246,8 +240,7 @@ fn extract_parameters(
             Parameter::Cookie { .. } => continue, // Skip cookie params
         };
 
-        let (param_type, default_val, enum_values) =
-            extract_param_type_info(&data.format);
+        let (param_type, default_val, enum_values) = extract_param_type_info(&data.format);
 
         result.push(ParamDef {
             name: data.name.clone(),
@@ -710,10 +703,7 @@ mod tests {
         assert_eq!(manifest.apis.len(), 1);
         assert_eq!(manifest.apis[0].name, "petstore");
         assert!(!manifest.apis[0].base_url.is_empty());
-        assert_eq!(
-            manifest.apis[0].base_url,
-            "https://petstore.example.com/v1"
-        );
+        assert_eq!(manifest.apis[0].base_url, "https://petstore.example.com/v1");
 
         // Functions - should have: list_pets, create_pet, get_pet_by_id
         assert!(
@@ -745,10 +735,7 @@ mod tests {
         assert!(has_query_param, "Expected at least one query parameter");
 
         // Schemas
-        assert!(
-            !manifest.schemas.is_empty(),
-            "Expected at least one schema"
-        );
+        assert!(!manifest.schemas.is_empty(), "Expected at least one schema");
         let pet_schema = manifest
             .schemas
             .iter()
@@ -1021,8 +1008,8 @@ mod tests {
         let spec = load_spec_from_file(Path::new("testdata/petstore.yaml")).unwrap();
         let manifest = spec_to_manifest(&spec, "petstore").unwrap();
 
-        let json = serde_json::to_string_pretty(&manifest)
-            .expect("Manifest should serialize to JSON");
+        let json =
+            serde_json::to_string_pretty(&manifest).expect("Manifest should serialize to JSON");
         let roundtripped: Manifest =
             serde_json::from_str(&json).expect("JSON should deserialize back");
 

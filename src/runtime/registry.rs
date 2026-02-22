@@ -28,23 +28,24 @@ pub fn register_functions(
     let sdk: mlua::Table = lua.globals().get("sdk")?;
 
     // Build a lookup from API name -> (base_url, auth_config)
-    let api_lookup: std::collections::HashMap<String, (&str, Option<&crate::codegen::manifest::AuthConfig>)> =
-        manifest
-            .apis
-            .iter()
-            .map(|api| {
-                (
-                    api.name.clone(),
-                    (api.base_url.as_str(), api.auth.as_ref()),
-                )
-            })
-            .collect();
+    let api_lookup: std::collections::HashMap<
+        String,
+        (&str, Option<&crate::codegen::manifest::AuthConfig>),
+    > = manifest
+        .apis
+        .iter()
+        .map(|api| (api.name.clone(), (api.base_url.as_str(), api.auth.as_ref())))
+        .collect();
 
     for func_def in &manifest.functions {
         let func_name = func_def.name.clone();
-        let (base_url, auth_config) = api_lookup
-            .get(&func_def.api)
-            .ok_or_else(|| anyhow::anyhow!("function '{}' references unknown API '{}'", func_name, func_def.api))?;
+        let (base_url, auth_config) = api_lookup.get(&func_def.api).ok_or_else(|| {
+            anyhow::anyhow!(
+                "function '{}' references unknown API '{}'",
+                func_name,
+                func_def.api
+            )
+        })?;
 
         let base_url = base_url.to_string();
         let auth_config_owned = auth_config.cloned();
@@ -128,9 +129,13 @@ pub fn register_functions(
                 if body_idx < arg_values.len() {
                     let body_val = arg_values[body_idx].clone();
                     if !matches!(body_val, Value::Nil) {
-                        let json_body: serde_json::Value = lua
-                            .from_value(body_val)
-                            .map_err(|e| mlua::Error::external(anyhow::anyhow!("failed to serialize request body: {}", e)))?;
+                        let json_body: serde_json::Value =
+                            lua.from_value(body_val).map_err(|e| {
+                                mlua::Error::external(anyhow::anyhow!(
+                                    "failed to serialize request body: {}",
+                                    e
+                                ))
+                            })?;
                         Some(json_body)
                     } else {
                         None
@@ -174,8 +179,9 @@ pub fn register_functions(
             .map_err(mlua::Error::external)?;
 
             // Convert JSON response to Lua value
-            let lua_value = lua.to_value(&response)
-                .map_err(|e| mlua::Error::external(anyhow::anyhow!("failed to convert response to Lua: {}", e)))?;
+            let lua_value = lua.to_value(&response).map_err(|e| {
+                mlua::Error::external(anyhow::anyhow!("failed to convert response to Lua: {}", e))
+            })?;
 
             Ok(lua_value)
         })?;
@@ -306,10 +312,14 @@ mod tests {
 
         register_functions(&sb, &manifest, handler, creds, counter, None).unwrap();
 
-        let result: String = sb.eval(r#"
+        let result: String = sb
+            .eval(
+                r#"
             local pet = sdk.get_pet("123")
             return pet.name
-        "#).unwrap();
+        "#,
+            )
+            .unwrap();
         assert_eq!(result, "Fido");
     }
 
@@ -351,7 +361,8 @@ mod tests {
 
         register_functions(&sb, &manifest, handler, creds, counter, None).unwrap();
 
-        sb.eval::<Value>(r#"sdk.list_pets("available", 10)"#).unwrap();
+        sb.eval::<Value>(r#"sdk.list_pets("available", 10)"#)
+            .unwrap();
 
         let query = captured_query.lock().unwrap().clone();
         assert_eq!(query.len(), 2);
@@ -374,7 +385,11 @@ mod tests {
         let result = sb.eval::<Value>("sdk.get_pet()");
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();
-        assert!(err.contains("missing required parameter"), "error was: {}", err);
+        assert!(
+            err.contains("missing required parameter"),
+            "error was: {}",
+            err
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -410,9 +425,12 @@ mod tests {
 
         register_functions(&sb, &manifest, handler, creds, counter, None).unwrap();
 
-        sb.eval::<Value>(r#"
+        sb.eval::<Value>(
+            r#"
             sdk.create_pet({name = "Buddy", status = "available"})
-        "#).unwrap();
+        "#,
+        )
+        .unwrap();
 
         let body = captured_body.lock().unwrap().clone();
         assert!(body.is_some());

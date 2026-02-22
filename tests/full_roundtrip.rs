@@ -8,16 +8,12 @@ use std::sync::Arc;
 async fn test_full_roundtrip_with_mock_api() {
     // 1. Generate from petstore spec
     let output_dir = tempfile::tempdir().unwrap();
-    generate(
-        &["testdata/petstore.yaml".to_string()],
-        output_dir.path(),
-    )
-    .await
-    .unwrap();
+    generate(&["testdata/petstore.yaml".to_string()], output_dir.path())
+        .await
+        .unwrap();
 
     // 2. Load manifest
-    let manifest_str =
-        std::fs::read_to_string(output_dir.path().join("manifest.json")).unwrap();
+    let manifest_str = std::fs::read_to_string(output_dir.path().join("manifest.json")).unwrap();
     let manifest: Manifest = serde_json::from_str(&manifest_str).unwrap();
 
     // Verify manifest has expected content
@@ -25,10 +21,7 @@ async fn test_full_roundtrip_with_mock_api() {
         !manifest.functions.is_empty(),
         "manifest should have functions"
     );
-    assert!(
-        !manifest.schemas.is_empty(),
-        "manifest should have schemas"
-    );
+    assert!(!manifest.schemas.is_empty(), "manifest should have schemas");
     assert!(!manifest.apis.is_empty(), "manifest should have apis");
 
     // 3. Create executor with mock HTTP handler
@@ -62,11 +55,7 @@ async fn test_full_roundtrip_with_mock_api() {
         }
     });
 
-    let executor = ScriptExecutor::new(
-        manifest,
-        Arc::new(handler),
-        ExecutorConfig::default(),
-    );
+    let executor = ScriptExecutor::new(manifest, Arc::new(handler), ExecutorConfig::default());
 
     // 4. Execute scripts that use the generated SDK functions
     let auth = AuthCredentialsMap::new();
@@ -135,12 +124,9 @@ async fn test_full_roundtrip_with_mock_api() {
 async fn test_generated_lua_annotations_are_valid() {
     // Generate and verify the Lua annotation files have proper content
     let output_dir = tempfile::tempdir().unwrap();
-    generate(
-        &["testdata/petstore.yaml".to_string()],
-        output_dir.path(),
-    )
-    .await
-    .unwrap();
+    generate(&["testdata/petstore.yaml".to_string()], output_dir.path())
+        .await
+        .unwrap();
 
     let sdk_dir = output_dir.path().join("sdk");
     for entry in std::fs::read_dir(&sdk_dir).unwrap() {

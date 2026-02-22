@@ -58,11 +58,7 @@ pub struct ScriptExecutor {
 
 impl ScriptExecutor {
     /// Create a new executor.
-    pub fn new(
-        manifest: Manifest,
-        handler: Arc<HttpHandler>,
-        config: ExecutorConfig,
-    ) -> Self {
+    pub fn new(manifest: Manifest, handler: Arc<HttpHandler>, config: ExecutorConfig) -> Self {
         Self {
             manifest,
             handler,
@@ -121,9 +117,8 @@ impl ScriptExecutor {
 
         // 5. Execute the script
         let script_owned = script.to_string();
-        let lua_result = tokio::task::block_in_place(|| {
-            sandbox.lua().load(&script_owned).eval::<Value>()
-        });
+        let lua_result =
+            tokio::task::block_in_place(|| sandbox.lua().load(&script_owned).eval::<Value>());
 
         // 6. Remove the hook
         sandbox.lua().remove_hook();
@@ -133,9 +128,7 @@ impl ScriptExecutor {
 
         // 8. Convert result to JSON
         let result_json = match lua_result {
-            Ok(value) => {
-                lua_value_to_json(sandbox.lua(), value)?
-            }
+            Ok(value) => lua_value_to_json(sandbox.lua(), value)?,
             Err(e) => {
                 return Err(anyhow::anyhow!("{}", e));
             }
@@ -301,9 +294,7 @@ mod tests {
         );
         let auth = AuthCredentialsMap::new();
 
-        let result = executor
-            .execute("while true do end", &auth, None)
-            .await;
+        let result = executor.execute("while true do end", &auth, None).await;
 
         assert!(result.is_err());
         let err = result.unwrap_err().to_string();

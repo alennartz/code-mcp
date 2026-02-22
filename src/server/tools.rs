@@ -61,11 +61,7 @@ pub fn list_apis_impl(server: &CodeMcpServer) -> String {
 }
 
 /// Implementation for list_functions: returns JSON array of function summaries.
-pub fn list_functions_impl(
-    server: &CodeMcpServer,
-    api: Option<&str>,
-    tag: Option<&str>,
-) -> String {
+pub fn list_functions_impl(server: &CodeMcpServer, api: Option<&str>, tag: Option<&str>) -> String {
     let funcs: Vec<serde_json::Value> = server
         .manifest
         .functions

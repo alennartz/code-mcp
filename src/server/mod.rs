@@ -1,5 +1,5 @@
-pub mod tools;
 pub mod resources;
+pub mod tools;
 
 use std::collections::HashMap;
 use std::sync::Arc;

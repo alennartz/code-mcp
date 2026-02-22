@@ -93,12 +93,9 @@ paths: {}
     #[tokio::test]
     async fn test_generate_creates_output() {
         let output_dir = tempfile::tempdir().unwrap();
-        generate(
-            &["testdata/petstore.yaml".to_string()],
-            output_dir.path(),
-        )
-        .await
-        .unwrap();
+        generate(&["testdata/petstore.yaml".to_string()], output_dir.path())
+            .await
+            .unwrap();
 
         // manifest.json should exist
         let manifest_path = output_dir.path().join("manifest.json");

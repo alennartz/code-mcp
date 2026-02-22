@@ -111,25 +111,24 @@ async fn serve_http(server: CodeMcpServer, port: u16) -> anyhow::Result<()> {
     // Create an Arc<CodeMcpServer> and build tool routes that work with it.
     let server = Arc::new(server);
 
-    let service: StreamableHttpService<
-        rmcp::handler::server::router::Router<Arc<CodeMcpServer>>,
-    > = StreamableHttpService::new(
-        {
-            let server = server.clone();
-            move || {
-                let router = rmcp::handler::server::router::Router::new(server.clone())
-                    .with_tool(code_mcp::server::tools::list_apis_tool_arc())
-                    .with_tool(code_mcp::server::tools::list_functions_tool_arc())
-                    .with_tool(code_mcp::server::tools::get_function_docs_tool_arc())
-                    .with_tool(code_mcp::server::tools::search_docs_tool_arc())
-                    .with_tool(code_mcp::server::tools::get_schema_tool_arc())
-                    .with_tool(code_mcp::server::tools::execute_script_tool_arc());
-                Ok(router)
-            }
-        },
-        Default::default(),
-        config,
-    );
+    let service: StreamableHttpService<rmcp::handler::server::router::Router<Arc<CodeMcpServer>>> =
+        StreamableHttpService::new(
+            {
+                let server = server.clone();
+                move || {
+                    let router = rmcp::handler::server::router::Router::new(server.clone())
+                        .with_tool(code_mcp::server::tools::list_apis_tool_arc())
+                        .with_tool(code_mcp::server::tools::list_functions_tool_arc())
+                        .with_tool(code_mcp::server::tools::get_function_docs_tool_arc())
+                        .with_tool(code_mcp::server::tools::search_docs_tool_arc())
+                        .with_tool(code_mcp::server::tools::get_schema_tool_arc())
+                        .with_tool(code_mcp::server::tools::execute_script_tool_arc());
+                    Ok(router)
+                }
+            },
+            Default::default(),
+            config,
+        );
 
     let app = axum::Router::new().nest_service("/mcp", service);
     let addr = format!("0.0.0.0:{}", port);

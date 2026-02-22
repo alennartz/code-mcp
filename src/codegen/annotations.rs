@@ -82,11 +82,7 @@ pub fn render_function_annotation(func: &FunctionDef) -> String {
     }
 
     // Function signature
-    let mut param_names: Vec<&str> = func
-        .parameters
-        .iter()
-        .map(|p| p.name.as_str())
-        .collect();
+    let mut param_names: Vec<&str> = func.parameters.iter().map(|p| p.name.as_str()).collect();
     if func.request_body.is_some() {
         param_names.push("body");
     }
@@ -153,11 +149,7 @@ pub fn generate_annotation_files(manifest: &Manifest) -> Vec<(String, String)> {
     // Group functions by tag
     let mut groups: BTreeMap<String, Vec<&FunctionDef>> = BTreeMap::new();
     for func in &manifest.functions {
-        let tag = func
-            .tag
-            .as_deref()
-            .unwrap_or("default")
-            .to_string();
+        let tag = func.tag.as_deref().unwrap_or("default").to_string();
         groups.entry(tag).or_default().push(func);
     }
 
@@ -689,10 +681,7 @@ mod tests {
         let pets_file = files.iter().find(|(name, _)| name == "pets.lua");
         assert!(pets_file.is_some(), "Missing pets.lua");
         let pets_content = &pets_file.unwrap().1;
-        assert!(
-            !pets_content.is_empty(),
-            "pets.lua is empty"
-        );
+        assert!(!pets_content.is_empty(), "pets.lua is empty");
         assert!(
             pets_content.contains("function sdk.list_pets"),
             "pets.lua missing list_pets function"
@@ -718,9 +707,6 @@ mod tests {
             meta_content.contains("petstore"),
             "_meta.lua missing API name"
         );
-        assert!(
-            meta_content.contains("1.0.0"),
-            "_meta.lua missing version"
-        );
+        assert!(meta_content.contains("1.0.0"), "_meta.lua missing version");
     }
 }

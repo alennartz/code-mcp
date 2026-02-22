@@ -28,8 +28,10 @@ impl Sandbox {
     /// Only `string`, `table`, and `math` standard libraries are loaded.
     /// Dangerous globals are removed and `print()` is overridden to capture output.
     pub fn new(config: SandboxConfig) -> anyhow::Result<Self> {
-        let lua =
-            Lua::new_with(StdLib::STRING | StdLib::TABLE | StdLib::MATH, LuaOptions::default())?;
+        let lua = Lua::new_with(
+            StdLib::STRING | StdLib::TABLE | StdLib::MATH,
+            LuaOptions::default(),
+        )?;
 
         // Set memory limit if configured
         if let Some(limit) = config.memory_limit {
@@ -66,10 +68,7 @@ impl Sandbox {
         // Override print() to capture output
         let logs_clone = Arc::clone(&logs);
         let print_fn = lua.create_function(move |_, args: MultiValue| {
-            let parts: Vec<String> = args
-                .iter()
-                .map(format_lua_value)
-                .collect();
+            let parts: Vec<String> = args.iter().map(format_lua_value).collect();
             let line = parts.join("\t");
             logs_clone.lock().unwrap().push(line);
             Ok(())
@@ -82,8 +81,7 @@ impl Sandbox {
         let encode_fn = lua.create_function(|lua, value: Value| {
             use mlua::LuaSerdeExt;
             let json_value: serde_json::Value = lua.from_value(value)?;
-            serde_json::to_string(&json_value)
-                .map_err(mlua::Error::external)
+            serde_json::to_string(&json_value).map_err(mlua::Error::external)
         })?;
         json_table.set("encode", encode_fn)?;
 

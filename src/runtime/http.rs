@@ -17,7 +17,12 @@ pub type AuthCredentialsMap = HashMap<String, AuthCredentials>;
 
 /// Mock function signature: (method, url, query_params, body) -> Result<serde_json::Value>
 type MockFn = Arc<
-    dyn Fn(&str, &str, &[(String, String)], Option<&serde_json::Value>) -> anyhow::Result<serde_json::Value>
+    dyn Fn(
+            &str,
+            &str,
+            &[(String, String)],
+            Option<&serde_json::Value>,
+        ) -> anyhow::Result<serde_json::Value>
         + Send
         + Sync,
 >;
@@ -51,7 +56,12 @@ impl HttpHandler {
     /// Create a mock HTTP handler for testing.
     pub fn mock<F>(f: F) -> Self
     where
-        F: Fn(&str, &str, &[(String, String)], Option<&serde_json::Value>) -> anyhow::Result<serde_json::Value>
+        F: Fn(
+                &str,
+                &str,
+                &[(String, String)],
+                Option<&serde_json::Value>,
+            ) -> anyhow::Result<serde_json::Value>
             + Send
             + Sync
             + 'static,
@@ -74,9 +84,9 @@ impl HttpHandler {
         match &self.inner {
             HttpHandlerInner::Mock(f) => f(method, url, query_params, body),
             HttpHandlerInner::Real(client) => {
-                let req_method = method.parse::<reqwest::Method>().map_err(|e| {
-                    anyhow::anyhow!("invalid HTTP method '{}': {}", method, e)
-                })?;
+                let req_method = method
+                    .parse::<reqwest::Method>()
+                    .map_err(|e| anyhow::anyhow!("invalid HTTP method '{}': {}", method, e))?;
 
                 let mut builder = client.request(req_method, url);
 
@@ -181,7 +191,14 @@ mod tests {
         });
 
         let result = handler
-            .request("GET", "http://example.com/pets/123", None, &AuthCredentials::None, &[], None)
+            .request(
+                "GET",
+                "http://example.com/pets/123",
+                None,
+                &AuthCredentials::None,
+                &[],
+                None,
+            )
             .await
             .unwrap();
 
@@ -210,7 +227,12 @@ mod tests {
         let builder = inject_auth(builder, Some(&auth_config), &creds);
         let request = builder.build().unwrap();
         assert_eq!(
-            request.headers().get("Authorization").unwrap().to_str().unwrap(),
+            request
+                .headers()
+                .get("Authorization")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "Bearer sk-test123"
         );
 
@@ -241,7 +263,12 @@ mod tests {
         let builder = inject_auth(builder, Some(&auth_config), &creds);
         let request = builder.build().unwrap();
         assert_eq!(
-            request.headers().get("X-API-Key").unwrap().to_str().unwrap(),
+            request
+                .headers()
+                .get("X-API-Key")
+                .unwrap()
+                .to_str()
+                .unwrap(),
             "my-secret-key"
         );
     }
