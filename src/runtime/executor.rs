@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-use mlua::{HookTriggers, LuaSerdeExt, Value, VmState};
+use mlua::{LuaSerdeExt, Value, VmState};
 
 use crate::codegen::manifest::Manifest;
 use crate::runtime::http::{AuthCredentialsMap, HttpHandler};
@@ -104,34 +104,31 @@ impl ScriptExecutor {
             self.config.max_api_calls,
         )?;
 
-        // 4. Set up timeout via instruction hook
+        // 3b. Enable Luau sandbox mode now that all globals are set up
+        sandbox.enable_sandbox()?;
+
+        // 4. Set up timeout via Luau interrupt
         let effective_timeout = timeout_ms.unwrap_or(self.config.timeout_ms);
         let deadline = Instant::now() + std::time::Duration::from_millis(effective_timeout);
-        sandbox.lua().set_hook(
-            HookTriggers::new().every_nth_instruction(1000),
-            move |_lua, _debug| {
-                if Instant::now() >= deadline {
-                    Err(mlua::Error::external(anyhow::anyhow!(
-                        "script execution timed out"
-                    )))
-                } else {
-                    Ok(VmState::Continue)
-                }
-            },
-        );
+        sandbox.lua().set_interrupt(move |_lua| {
+            if Instant::now() >= deadline {
+                Err(mlua::Error::external(anyhow::anyhow!(
+                    "script execution timed out"
+                )))
+            } else {
+                Ok(VmState::Continue)
+            }
+        });
 
         // 5. Execute the script
         let script_owned = script.to_string();
         let lua_result =
             tokio::task::block_in_place(|| sandbox.lua().load(&script_owned).eval::<Value>());
 
-        // 6. Remove the hook
-        sandbox.lua().remove_hook();
-
-        // 7. Collect logs
+        // 6. Collect logs
         let logs = sandbox.take_logs();
 
-        // 8. Convert result to JSON
+        // 7. Convert result to JSON
         let result_json = match lua_result {
             Ok(value) => lua_value_to_json(sandbox.lua(), value)?,
             Err(e) => {
@@ -159,7 +156,14 @@ fn lua_value_to_json(lua: &mlua::Lua, value: Value) -> anyhow::Result<serde_json
     match value {
         Value::Boolean(b) => Ok(serde_json::Value::Bool(b)),
         Value::Integer(n) => Ok(serde_json::json!(n)),
-        Value::Number(n) => Ok(serde_json::json!(n)),
+        #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
+        Value::Number(n) => {
+            if n.fract() == 0.0 && (i64::MIN as f64..=i64::MAX as f64).contains(&n) {
+                Ok(serde_json::json!(n as i64))
+            } else {
+                Ok(serde_json::json!(n))
+            }
+        }
         Value::String(s) => Ok(serde_json::Value::String(s.to_string_lossy())),
         Value::Table(_) => {
             let json: serde_json::Value = lua.from_value(value)?;

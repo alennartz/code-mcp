@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use mlua::{FromLua, Lua, LuaOptions, MultiValue, StdLib, Value};
+use mlua::{FromLua, Lua, MultiValue, Value};
 
 /// Configuration for the Lua sandbox.
 #[derive(Clone, Copy)]
@@ -17,50 +17,25 @@ impl Default for SandboxConfig {
     }
 }
 
-/// A locked-down Lua 5.4 environment with only safe standard libraries.
+/// A locked-down Luau environment using native sandbox mode.
 pub struct Sandbox {
     lua: Lua,
     logs: Arc<Mutex<Vec<String>>>,
 }
 
 impl Sandbox {
-    /// Create a new sandbox with the given configuration.
+    /// Create a new sandboxed Luau environment.
     ///
-    /// Only `string`, `table`, and `math` standard libraries are loaded.
-    /// Dangerous globals are removed and `print()` is overridden to capture output.
+    /// Uses Luau's native sandbox mode which makes all globals and metatables
+    /// read-only, creates isolated per-script environments, and restricts
+    /// `collectgarbage`. Custom `print()`, `json`, and `sdk` globals are
+    /// injected before sandboxing activates.
     pub fn new(config: SandboxConfig) -> anyhow::Result<Self> {
-        let lua = Lua::new_with(
-            StdLib::STRING | StdLib::TABLE | StdLib::MATH,
-            LuaOptions::default(),
-        )?;
+        let lua = Lua::new();
 
-        // Set memory limit if configured
+        // Set memory limit before sandboxing
         if let Some(limit) = config.memory_limit {
             lua.set_memory_limit(limit)?;
-        }
-
-        // Block string.dump (allows bytecode dumping which can bypass sandbox)
-        let string_table: mlua::Table = lua.globals().get("string")?;
-        string_table.set("dump", Value::Nil)?;
-
-        // Remove / nil out dangerous globals that might still exist
-        let globals = lua.globals();
-        for name in &[
-            "io",
-            "os",
-            "loadfile",
-            "dofile",
-            "require",
-            "debug",
-            "load",
-            "package",
-            "rawget",
-            "rawset",
-            "rawequal",
-            "rawlen",
-            "collectgarbage",
-        ] {
-            globals.set(*name, Value::Nil)?;
         }
 
         // Shared log buffer for captured print output
@@ -76,7 +51,7 @@ impl Sandbox {
             }
             Ok(())
         })?;
-        globals.set("print", print_fn)?;
+        lua.globals().set("print", print_fn)?;
 
         // Add json.encode() and json.decode() — Rust-backed via serde
         let json_table = lua.create_table()?;
@@ -96,11 +71,15 @@ impl Sandbox {
         })?;
         json_table.set("decode", decode_fn)?;
 
-        globals.set("json", json_table)?;
+        lua.globals().set("json", json_table)?;
 
         // Create empty sdk table (will be populated by registry)
         let sdk_table = lua.create_table()?;
-        globals.set("sdk", sdk_table)?;
+        lua.globals().set("sdk", sdk_table)?;
+
+        // Remove `require` — Luau sandbox mode does not strip it, and we
+        // do not want scripts loading external modules.
+        lua.globals().set("require", Value::Nil)?;
 
         Ok(Self { lua, logs })
     }
@@ -116,6 +95,17 @@ impl Sandbox {
         let result = self.lua.load(script).eval::<T>()?;
         let logs = self.take_logs();
         Ok((result, logs))
+    }
+
+    /// Enable Luau sandbox mode.
+    ///
+    /// This makes all globals (including custom ones like `sdk`, `json`, and
+    /// `print`) read-only and activates per-script isolated environments.
+    /// Must be called **after** all globals have been set up (e.g. after
+    /// registry functions are registered into the `sdk` table).
+    pub fn enable_sandbox(&self) -> anyhow::Result<()> {
+        self.lua.sandbox(true)?;
+        Ok(())
     }
 
     /// Access the raw Lua state (for registry to add functions).
@@ -137,16 +127,15 @@ fn format_lua_value(value: &Value) -> String {
     match value {
         Value::Nil => "nil".to_string(),
         Value::Boolean(b) => b.to_string(),
-        Value::Integer(n) => n.to_string(),
-        Value::Number(n) => {
-            // Format without trailing zeros for whole numbers
+        Value::Number(n) =>
+        {
             #[allow(
                 clippy::float_cmp,
                 clippy::cast_precision_loss,
                 clippy::cast_possible_truncation
             )]
             if *n == (*n as i64) as f64 {
-                format!("{n:.1}")
+                format!("{}", *n as i64)
             } else {
                 n.to_string()
             }
@@ -157,7 +146,7 @@ fn format_lua_value(value: &Value) -> String {
         Value::UserData(_) | Value::LightUserData(_) => "userdata".to_string(),
         Value::Thread(_) => "thread".to_string(),
         Value::Error(e) => format!("error: {e}"),
-        Value::Other(_) => "unknown".to_string(),
+        _ => "unknown".to_string(),
     }
 }
 
@@ -166,23 +155,30 @@ mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
 
+    /// Helper: create a sandbox with sandboxing enabled.
+    fn sandboxed() -> Sandbox {
+        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        sb.enable_sandbox().unwrap();
+        sb
+    }
+
     #[test]
     fn test_sandbox_allows_basic_lua() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result: String = sb.eval("return 'hello'").unwrap();
         assert_eq!(result, "hello");
     }
 
     #[test]
     fn test_sandbox_allows_string_lib() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result: String = sb.eval("return string.upper('hello')").unwrap();
         assert_eq!(result, "HELLO");
     }
 
     #[test]
     fn test_sandbox_allows_table_lib() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result: String = sb
             .eval(
                 r#"
@@ -197,56 +193,57 @@ mod tests {
 
     #[test]
     fn test_sandbox_allows_math_lib() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
-        let result: i64 = sb.eval("return math.floor(3.7)").unwrap();
-        assert_eq!(result, 3);
+        let sb = sandboxed();
+        let result: f64 = sb.eval("return math.floor(3.7)").unwrap();
+        assert!((result - 3.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_sandbox_blocks_io() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result = sb.eval::<Value>("return io.open('/etc/passwd')");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_sandbox_blocks_os_execute() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
+        // Luau's os table only has clock/difftime/time — execute doesn't exist
         let result = sb.eval::<Value>("return os.execute('ls')");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_sandbox_blocks_loadfile() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result = sb.eval::<Value>("return loadfile('test.lua')");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_sandbox_blocks_require() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result = sb.eval::<Value>("return require('os')");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_sandbox_blocks_dofile() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result = sb.eval::<Value>("return dofile('test.lua')");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_sandbox_blocks_string_dump() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result = sb.eval::<Value>("return string.dump(function() end)");
         assert!(result.is_err());
     }
 
     #[test]
     fn test_sandbox_captures_print() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let (_, logs) = sb
             .eval_with_logs::<Value>(
                 r#"
@@ -260,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_sandbox_json_encode_decode() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result: String = sb
             .eval(
                 r#"
@@ -276,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_sandbox_has_sdk_table() {
-        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let sb = sandboxed();
         let result: String = sb.eval("return type(sdk)").unwrap();
         assert_eq!(result, "table");
     }
@@ -287,6 +284,7 @@ mod tests {
             memory_limit: Some(1024 * 1024), // 1 MB
         })
         .unwrap();
+        sb.enable_sandbox().unwrap();
         let result = sb.eval::<Value>(
             r#"
             local s = "x"
