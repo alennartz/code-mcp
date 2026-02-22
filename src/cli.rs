@@ -39,13 +39,13 @@ pub enum Command {
         /// Explicit JWKS URI (optional, derived from authority via OIDC discovery if not set)
         #[arg(long, env = "MCP_AUTH_JWKS_URI")]
         auth_jwks_uri: Option<String>,
-        /// Script execution timeout in seconds (default: 30)
+        /// Script execution timeout in seconds
         #[arg(long, default_value = "30")]
         timeout: u64,
-        /// Luau VM memory limit in megabytes (default: 64)
+        /// Luau VM memory limit in megabytes
         #[arg(long, default_value = "64")]
         memory_limit: usize,
-        /// Maximum API calls per script execution (default: 100)
+        /// Maximum API calls per script execution
         #[arg(long, default_value = "100")]
         max_api_calls: usize,
     },
@@ -69,14 +69,85 @@ pub enum Command {
         /// Explicit JWKS URI (optional, derived from authority via OIDC discovery if not set)
         #[arg(long, env = "MCP_AUTH_JWKS_URI")]
         auth_jwks_uri: Option<String>,
-        /// Script execution timeout in seconds (default: 30)
+        /// Script execution timeout in seconds
         #[arg(long, default_value = "30")]
         timeout: u64,
-        /// Luau VM memory limit in megabytes (default: 64)
+        /// Luau VM memory limit in megabytes
         #[arg(long, default_value = "64")]
         memory_limit: usize,
-        /// Maximum API calls per script execution (default: 100)
+        /// Maximum API calls per script execution
         #[arg(long, default_value = "100")]
         max_api_calls: usize,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn test_run_defaults() {
+        let cli = Cli::parse_from(["code-mcp", "run", "spec.yaml"]);
+        match cli.command {
+            Command::Run {
+                timeout,
+                memory_limit,
+                max_api_calls,
+                ..
+            } => {
+                assert_eq!(timeout, 30);
+                assert_eq!(memory_limit, 64);
+                assert_eq!(max_api_calls, 100);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_run_custom_limits() {
+        let cli = Cli::parse_from([
+            "code-mcp",
+            "run",
+            "spec.yaml",
+            "--timeout",
+            "60",
+            "--memory-limit",
+            "128",
+            "--max-api-calls",
+            "50",
+        ]);
+        match cli.command {
+            Command::Run {
+                timeout,
+                memory_limit,
+                max_api_calls,
+                ..
+            } => {
+                assert_eq!(timeout, 60);
+                assert_eq!(memory_limit, 128);
+                assert_eq!(max_api_calls, 50);
+            }
+            _ => panic!("expected Run"),
+        }
+    }
+
+    #[test]
+    fn test_serve_defaults() {
+        let cli = Cli::parse_from(["code-mcp", "serve", "./output"]);
+        match cli.command {
+            Command::Serve {
+                timeout,
+                memory_limit,
+                max_api_calls,
+                ..
+            } => {
+                assert_eq!(timeout, 30);
+                assert_eq!(memory_limit, 64);
+                assert_eq!(max_api_calls, 100);
+            }
+            _ => panic!("expected Serve"),
+        }
+    }
 }
