@@ -8,6 +8,8 @@ use rmcp::model::{CallToolResult, Content, Tool};
 use serde::Deserialize;
 
 use super::CodeMcpServer;
+use super::auth;
+use crate::runtime::http::AuthCredentialsMap;
 
 // ---- Tool parameter structs ----
 
@@ -336,7 +338,14 @@ pub fn execute_script_tool() -> ToolRoute<CodeMcpServer> {
             let args = context.arguments.take().unwrap_or_default();
             let params: Result<ExecuteScriptParams, _> =
                 serde_json::from_value(serde_json::Value::Object(args));
-            execute_script_async(params, context.service).boxed()
+            let meta_auth = context
+                .request_context
+                .meta
+                .get("auth")
+                .map_or_else(AuthCredentialsMap::new, |auth_value| {
+                    auth::parse_meta_auth(auth_value)
+                });
+            execute_script_async(params, context.service, meta_auth).boxed()
         },
     )
 }
@@ -359,6 +368,7 @@ fn execute_script_tool_def() -> Tool {
 async fn execute_script_async(
     params: Result<ExecuteScriptParams, serde_json::Error>,
     server: &CodeMcpServer,
+    meta_auth: AuthCredentialsMap,
 ) -> Result<CallToolResult, rmcp::ErrorData> {
     let params = match params {
         Ok(p) => p,
@@ -369,10 +379,10 @@ async fn execute_script_async(
         }
     };
 
-    let auth = &server.auth;
+    let merged_auth = auth::merge_credentials(&server.auth, &meta_auth);
     let result = server
         .executor
-        .execute(&params.script, auth, params.timeout_ms)
+        .execute(&params.script, &merged_auth, params.timeout_ms)
         .await;
 
     match result {
@@ -543,7 +553,14 @@ pub fn execute_script_tool_arc() -> ToolRoute<Arc<CodeMcpServer>> {
             let args = context.arguments.take().unwrap_or_default();
             let params: Result<ExecuteScriptParams, _> =
                 serde_json::from_value(serde_json::Value::Object(args));
-            execute_script_async(params, context.service).boxed()
+            let meta_auth = context
+                .request_context
+                .meta
+                .get("auth")
+                .map_or_else(AuthCredentialsMap::new, |auth_value| {
+                    auth::parse_meta_auth(auth_value)
+                });
+            execute_script_async(params, context.service, meta_auth).boxed()
         },
     )
 }

@@ -79,6 +79,18 @@ pub fn parse_meta_auth(auth_value: &serde_json::Value) -> AuthCredentialsMap {
     map
 }
 
+/// Extract upstream credentials from a `_meta` JSON value.
+///
+/// Looks for an `"auth"` key in the provided value and parses it using
+/// [`parse_meta_auth`]. Returns an empty map if no `"auth"` key is found.
+pub fn extract_meta_auth_from_value(meta_value: &serde_json::Value) -> AuthCredentialsMap {
+    meta_value
+        .get("auth")
+        .map_or_else(AuthCredentialsMap::new, |auth_value| {
+            parse_meta_auth(auth_value)
+        })
+}
+
 /// Merge environment-loaded credentials with per-request `_meta.auth` credentials.
 ///
 /// Meta credentials take precedence: if the same API name appears in both maps,
@@ -486,6 +498,30 @@ mod tests {
             other => panic!("expected meta-token, got {:?}", other),
         }
         assert!(matches!(&merged["billing"], AuthCredentials::ApiKey(_)));
+    }
+
+    // ----- Task 8: extract_meta_auth_from_value tests -----
+
+    #[test]
+    fn test_extract_auth_from_meta_json_object() {
+        let meta = serde_json::json!({
+            "auth": {
+                "petstore": { "type": "bearer", "token": "sk-123" }
+            },
+            "other_field": "ignored"
+        });
+        let auth = extract_meta_auth_from_value(&meta);
+        assert_eq!(auth.len(), 1);
+        assert!(matches!(&auth["petstore"], AuthCredentials::BearerToken(_)));
+    }
+
+    #[test]
+    fn test_extract_auth_from_meta_no_auth_field() {
+        let meta = serde_json::json!({
+            "other_field": "no auth here"
+        });
+        let auth = extract_meta_auth_from_value(&meta);
+        assert!(auth.is_empty());
     }
 
     // ----- Task 4: JWT validation tests -----
