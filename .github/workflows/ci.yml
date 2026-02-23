@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy -- -D warnings
+
+      - name: Tests
+        run: cargo test
+
+  e2e-binary:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install e2e dependencies
+        run: pip install -e .
+        working-directory: e2e
+
+      - name: Run e2e tests
+        run: python -m pytest tests/ -v
+        working-directory: e2e
+
+  e2e-docker:
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: code-mcp:ci
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install e2e dependencies
+        run: pip install -e .
+        working-directory: e2e
+
+      - name: Start test API server
+        run: |
+          cd e2e && python -m uvicorn test_api.app:app \
+            --host 127.0.0.1 --port 9100 --log-level warning &
+          sleep 2
+          curl -sf http://127.0.0.1:9100/openapi.json > /dev/null
+        env:
+          TEST_API_SERVER_URL: "http://127.0.0.1:9100"
+
+      - name: Start code-mcp container
+        run: |
+          docker run -d --name code-mcp-ci --network=host \
+            -e TEST_API_BEARER_TOKEN=test-secret-123 \
+            code-mcp:ci \
+            http://127.0.0.1:9100/openapi.json \
+            --transport http --port 9300
+
+          # Wait for code-mcp to be ready
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null http://127.0.0.1:9300/mcp 2>/dev/null; then
+              echo "code-mcp ready"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Run HTTP e2e tests against Docker container
+        run: python -m pytest tests/test_http_transport.py -v -k "not auth_required and not well_known"
+        working-directory: e2e
+        env:
+          CODE_MCP_URL: "http://127.0.0.1:9300"
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: docker logs code-mcp-ci
+
+  deploy:
+    needs: [e2e-binary, e2e-docker]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=sha-
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
