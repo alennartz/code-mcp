@@ -110,9 +110,8 @@ pub fn resolve_cli_auth(
     let mut map = AuthCredentialsMap::new();
 
     for (name, env_var) in auth_args {
-        let token = std::env::var(env_var).map_err(|_| {
-            anyhow::anyhow!("environment variable '{env_var}' is not set")
-        })?;
+        let token = std::env::var(env_var)
+            .map_err(|_| anyhow::anyhow!("environment variable '{env_var}' is not set"))?;
 
         let api_name = if let Some(n) = name {
             if !api_names.contains(n) {
@@ -147,7 +146,9 @@ pub fn resolve_config_auth(config: &CodeMcpConfig) -> anyhow::Result<AuthCredent
         // The `auth_env` field on ConfigApiEntry is an alternative to the EnvRef variant
         if let Some(env_var) = &entry.auth_env {
             let token = std::env::var(env_var).map_err(|_| {
-                anyhow::anyhow!("environment variable '{env_var}' (from auth_env for '{name}') is not set")
+                anyhow::anyhow!(
+                    "environment variable '{env_var}' (from auth_env for '{name}') is not set"
+                )
             })?;
             map.insert(name.clone(), AuthCredentials::BearerToken(token));
             continue;
@@ -243,7 +244,10 @@ mod tests {
     #[test]
     fn test_parse_auth_arg_named() {
         let result = parse_auth_arg("petstore:MY_TOKEN").unwrap();
-        assert_eq!(result, (Some("petstore".to_string()), "MY_TOKEN".to_string()));
+        assert_eq!(
+            result,
+            (Some("petstore".to_string()), "MY_TOKEN".to_string())
+        );
     }
 
     #[test]
@@ -274,7 +278,10 @@ mod tests {
     fn test_resolve_cli_auth_named() {
         // SAFETY: test-only env manipulation; tests run serially for env vars
         unsafe { std::env::set_var("TEST_CLI_AUTH_TOKEN", "secret123") };
-        let auth_args = vec![(Some("petstore".to_string()), "TEST_CLI_AUTH_TOKEN".to_string())];
+        let auth_args = vec![(
+            Some("petstore".to_string()),
+            "TEST_CLI_AUTH_TOKEN".to_string(),
+        )];
         let api_names = vec!["petstore".to_string()];
         let result = resolve_cli_auth(&auth_args, &api_names).unwrap();
         unsafe { std::env::remove_var("TEST_CLI_AUTH_TOKEN") };
@@ -404,7 +411,10 @@ auth_env = "MY_API_TOKEN"
         tmpfile.write_all(toml_content.as_bytes()).unwrap();
 
         let config = load_config(tmpfile.path()).unwrap();
-        assert_eq!(config.apis["myapi"].auth_env.as_deref(), Some("MY_API_TOKEN"));
+        assert_eq!(
+            config.apis["myapi"].auth_env.as_deref(),
+            Some("MY_API_TOKEN")
+        );
     }
 
     #[test]

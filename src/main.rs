@@ -55,8 +55,7 @@ async fn main() -> anyhow::Result<()> {
             memory_limit,
             max_api_calls,
         } => {
-            let mcp_auth =
-                build_mcp_auth_config(auth_authority, auth_audience, auth_jwks_uri)?;
+            let mcp_auth = build_mcp_auth_config(auth_authority, auth_audience, auth_jwks_uri)?;
             let manifest = load_manifest(&dir)?;
             let api_names: Vec<String> = manifest.apis.iter().map(|a| a.name.clone()).collect();
             let auth_args: Vec<_> = api_auth
@@ -90,8 +89,7 @@ async fn main() -> anyhow::Result<()> {
             memory_limit,
             max_api_calls,
         } => {
-            let mcp_auth =
-                build_mcp_auth_config(auth_authority, auth_audience, auth_jwks_uri)?;
+            let mcp_auth = build_mcp_auth_config(auth_authority, auth_audience, auth_jwks_uri)?;
             let (spec_inputs, config_obj) = resolve_run_inputs(&specs, config.as_deref())?;
             let tmpdir = tempfile::tempdir()?;
             generate(&spec_inputs, tmpdir.path()).await?;

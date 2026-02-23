@@ -83,7 +83,12 @@ mod tests {
     fn test_run_with_spec() {
         let cli = Cli::parse_from(["code-mcp", "run", "spec.yaml"]);
         match cli.command {
-            Command::Run { specs, config, api_auth, .. } => {
+            Command::Run {
+                specs,
+                config,
+                api_auth,
+                ..
+            } => {
                 assert_eq!(specs, vec!["spec.yaml"]);
                 assert!(config.is_none());
                 assert!(api_auth.is_empty());
@@ -107,11 +112,16 @@ mod tests {
     #[test]
     fn test_run_with_auth_flag() {
         let cli = Cli::parse_from([
-            "code-mcp", "run", "petstore=spec.yaml",
-            "--auth", "petstore:MY_TOKEN",
+            "code-mcp",
+            "run",
+            "petstore=spec.yaml",
+            "--auth",
+            "petstore:MY_TOKEN",
         ]);
         match cli.command {
-            Command::Run { specs, api_auth, .. } => {
+            Command::Run {
+                specs, api_auth, ..
+            } => {
                 assert_eq!(specs, vec!["petstore=spec.yaml"]);
                 assert_eq!(api_auth, vec!["petstore:MY_TOKEN"]);
             }
@@ -122,9 +132,14 @@ mod tests {
     #[test]
     fn test_run_with_multiple_auth() {
         let cli = Cli::parse_from([
-            "code-mcp", "run", "a=a.yaml", "b=b.yaml",
-            "--auth", "a:TOKEN_A",
-            "--auth", "b:TOKEN_B",
+            "code-mcp",
+            "run",
+            "a=a.yaml",
+            "b=b.yaml",
+            "--auth",
+            "a:TOKEN_A",
+            "--auth",
+            "b:TOKEN_B",
         ]);
         match cli.command {
             Command::Run { api_auth, .. } => {
@@ -138,7 +153,12 @@ mod tests {
     fn test_run_defaults() {
         let cli = Cli::parse_from(["code-mcp", "run", "spec.yaml"]);
         match cli.command {
-            Command::Run { timeout, memory_limit, max_api_calls, .. } => {
+            Command::Run {
+                timeout,
+                memory_limit,
+                max_api_calls,
+                ..
+            } => {
                 assert_eq!(timeout, 30);
                 assert_eq!(memory_limit, 64);
                 assert_eq!(max_api_calls, 100);
@@ -151,7 +171,12 @@ mod tests {
     fn test_serve_defaults() {
         let cli = Cli::parse_from(["code-mcp", "serve", "./output"]);
         match cli.command {
-            Command::Serve { timeout, memory_limit, max_api_calls, .. } => {
+            Command::Serve {
+                timeout,
+                memory_limit,
+                max_api_calls,
+                ..
+            } => {
                 assert_eq!(timeout, 30);
                 assert_eq!(memory_limit, 64);
                 assert_eq!(max_api_calls, 100);
@@ -164,7 +189,11 @@ mod tests {
     fn test_generate_with_config() {
         let cli = Cli::parse_from(["code-mcp", "generate", "--config", "my.toml", "-o", "out"]);
         match cli.command {
-            Command::Generate { specs, config, output } => {
+            Command::Generate {
+                specs,
+                config,
+                output,
+            } => {
                 assert!(specs.is_empty());
                 assert_eq!(config.unwrap().to_str().unwrap(), "my.toml");
                 assert_eq!(output.to_str().unwrap(), "out");
@@ -176,8 +205,11 @@ mod tests {
     #[test]
     fn test_serve_with_auth() {
         let cli = Cli::parse_from([
-            "code-mcp", "serve", "./output",
-            "--auth", "petstore:MY_TOKEN",
+            "code-mcp",
+            "serve",
+            "./output",
+            "--auth",
+            "petstore:MY_TOKEN",
         ]);
         match cli.command {
             Command::Serve { api_auth, .. } => {
