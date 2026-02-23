@@ -289,7 +289,7 @@ mod tests {
         assert!(result.contains_key("petstore"));
         match &result["petstore"] {
             AuthCredentials::BearerToken(token) => assert_eq!(token, "secret123"),
-            other => panic!("Expected BearerToken, got {:?}", other),
+            other => panic!("Expected BearerToken, got {other:?}"),
         }
     }
 
@@ -305,7 +305,7 @@ mod tests {
         assert!(result.contains_key("onlyapi"));
         match &result["onlyapi"] {
             AuthCredentials::BearerToken(token) => assert_eq!(token, "token456"),
-            other => panic!("Expected BearerToken, got {:?}", other),
+            other => panic!("Expected BearerToken, got {other:?}"),
         }
     }
 
@@ -367,7 +367,7 @@ auth = "ghp_xxxxxxxxxxxx"
 
         match &config.apis["petstore"].auth {
             Some(ConfigAuth::Direct(s)) => assert_eq!(s, "sk-my-token"),
-            other => panic!("Expected Direct auth, got {:?}", other),
+            other => panic!("Expected Direct auth, got {other:?}"),
         }
     }
 
@@ -396,7 +396,7 @@ password = "pass1"
                 assert_eq!(username, "user1");
                 assert_eq!(password, "pass1");
             }
-            other => panic!("Expected Basic auth, got {:?}", other),
+            other => panic!("Expected Basic auth, got {other:?}"),
         }
     }
 
@@ -433,7 +433,7 @@ auth_env = "MY_API_TOKEN"
 
         match &result["petstore"] {
             AuthCredentials::BearerToken(t) => assert_eq!(t, "sk-direct-token"),
-            other => panic!("Expected BearerToken, got {:?}", other),
+            other => panic!("Expected BearerToken, got {other:?}"),
         }
     }
 
@@ -460,7 +460,7 @@ auth_env = "MY_API_TOKEN"
                 assert_eq!(username, "admin");
                 assert_eq!(password, "hunter2");
             }
-            other => panic!("Expected Basic, got {:?}", other),
+            other => panic!("Expected Basic, got {other:?}"),
         }
     }
 
@@ -485,7 +485,7 @@ auth_env = "MY_API_TOKEN"
 
         match &result["myapi"] {
             AuthCredentials::BearerToken(t) => assert_eq!(t, "envtoken999"),
-            other => panic!("Expected BearerToken, got {:?}", other),
+            other => panic!("Expected BearerToken, got {other:?}"),
         }
     }
 }

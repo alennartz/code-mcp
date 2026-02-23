@@ -120,13 +120,8 @@ paths: {}
         // Should have at least one .luau file
         let luau_files: Vec<_> = std::fs::read_dir(&sdk_dir)
             .unwrap()
-            .filter_map(|e| e.ok())
-            .filter(|e| {
-                e.path()
-                    .extension()
-                    .map(|ext| ext == "luau")
-                    .unwrap_or(false)
-            })
+            .filter_map(std::result::Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|ext| ext == "luau"))
             .collect();
         assert!(!luau_files.is_empty(), "No .luau files in sdk/");
     }
