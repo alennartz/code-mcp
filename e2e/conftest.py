@@ -1,3 +1,4 @@
+import os
 import socket
 import subprocess
 import threading
@@ -45,6 +46,10 @@ def code_mcp_binary() -> Path:
 @pytest.fixture(scope="session")
 def test_api_url() -> str:
     port = _free_port()
+    url = f"http://127.0.0.1:{port}"
+    # Set the server URL env var so the OpenAPI spec includes it
+    # in the servers section (must be set before first /openapi.json request).
+    os.environ["TEST_API_SERVER_URL"] = url
     config = uvicorn.Config(
         "test_api.app:app",
         host="127.0.0.1",
@@ -54,7 +59,6 @@ def test_api_url() -> str:
     server = uvicorn.Server(config)
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
-    url = f"http://127.0.0.1:{port}"
     _wait_for_http(f"{url}/openapi.json")
     yield url
     server.should_exit = True

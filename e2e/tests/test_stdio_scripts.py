@@ -1,0 +1,204 @@
+import json
+import pytest
+from mcp import ClientSession
+
+
+def parse_result(result) -> dict:
+    """Parse a successful execute_script response.
+
+    Returns the parsed JSON containing 'result', 'logs', and 'stats'.
+    Raises AssertionError if the response indicates an error.
+    """
+    text = result.content[0].text
+    assert not result.isError, f"Script execution error: {text}"
+    return json.loads(text)
+
+
+@pytest.mark.asyncio
+async def test_list_pets_smoke(mcp_stdio_session: ClientSession):
+    """Smoke test: verify response format from execute_script."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": "return sdk.list_pets()"
+    })
+    data = parse_result(result)
+    assert "result" in data
+    assert "logs" in data
+    assert "stats" in data
+    assert data["stats"]["api_calls"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_pets(mcp_stdio_session: ClientSession):
+    """sdk.list_pets() should return seeded data with items and total."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": "return sdk.list_pets()"
+    })
+    data = parse_result(result)
+    pets = data["result"]
+    assert pets["total"] == 4
+    assert len(pets["items"]) == 4
+    names = {p["name"] for p in pets["items"]}
+    assert "Fido" in names
+    assert "Whiskers" in names
+    assert "Buddy" in names
+    assert "Luna" in names
+
+
+@pytest.mark.asyncio
+async def test_get_pet_by_id(mcp_stdio_session: ClientSession):
+    """sdk.get_pet(1) should return Fido."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": "return sdk.get_pet(1)"
+    })
+    data = parse_result(result)
+    pet = data["result"]
+    assert pet["id"] == 1
+    assert pet["name"] == "Fido"
+    assert pet["status"] == "active"
+    assert pet["tag"] == "dog"
+    assert pet["owner_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_create_pet(mcp_stdio_session: ClientSession):
+    """sdk.create_pet({...}) should create a new pet and return it."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": 'return sdk.create_pet({ name = "Spark", status = "active", tag = "hamster" })'
+    })
+    data = parse_result(result)
+    pet = data["result"]
+    assert pet["name"] == "Spark"
+    assert pet["status"] == "active"
+    assert pet["tag"] == "hamster"
+    assert "id" in pet
+
+
+@pytest.mark.asyncio
+async def test_update_pet(mcp_stdio_session: ClientSession):
+    """sdk.update_pet(pet_id, body) should update and return the pet."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": 'return sdk.update_pet(1, { name = "Fido Jr." })'
+    })
+    data = parse_result(result)
+    pet = data["result"]
+    assert pet["id"] == 1
+    assert pet["name"] == "Fido Jr."
+
+
+@pytest.mark.asyncio
+async def test_delete_pet(mcp_stdio_session: ClientSession):
+    """sdk.delete_pet(pet_id) should delete the pet."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": "return sdk.delete_pet(1)"
+    })
+    data = parse_result(result)
+    assert data["result"]["status"] == "deleted"
+
+
+@pytest.mark.asyncio
+async def test_query_params(mcp_stdio_session: ClientSession):
+    """sdk.list_pets(limit, status) should filter by query params.
+
+    Signature: sdk.list_pets(limit: number?, status: string?)
+    """
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": 'return sdk.list_pets(2, "active")'
+    })
+    data = parse_result(result)
+    pets = data["result"]
+    # There are 2 active pets (Fido, Buddy), limit=2 should return both
+    assert len(pets["items"]) <= 2
+    for p in pets["items"]:
+        assert p["status"] == "active"
+
+
+@pytest.mark.asyncio
+async def test_nested_resource(mcp_stdio_session: ClientSession):
+    """sdk.list_owner_pets(owner_id) should return pets for a specific owner."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": "return sdk.list_owner_pets(1)"
+    })
+    data = parse_result(result)
+    pets = data["result"]
+    # Owner 1 (Alice) has Fido and Whiskers
+    assert len(pets) == 2
+    names = {p["name"] for p in pets}
+    assert "Fido" in names
+    assert "Whiskers" in names
+
+
+@pytest.mark.asyncio
+async def test_multi_call_script(mcp_stdio_session: ClientSession):
+    """Chain: list_pets -> get first pet by ID from result."""
+    script = """
+        local all_pets = sdk.list_pets()
+        local first_id = all_pets.items[1].id
+        local detail = sdk.get_pet(first_id)
+        return { list_count = all_pets.total, detail = detail }
+    """
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": script
+    })
+    data = parse_result(result)
+    assert data["stats"]["api_calls"] == 2
+    r = data["result"]
+    assert r["list_count"] == 4
+    assert "detail" in r
+    assert r["detail"]["id"] is not None
+    assert r["detail"]["name"] is not None
+
+
+@pytest.mark.asyncio
+async def test_create_then_fetch(mcp_stdio_session: ClientSession):
+    """Chain: create pet -> fetch it by returned ID."""
+    script = """
+        local created = sdk.create_pet({ name = "Ziggy", status = "pending", tag = "parrot" })
+        local fetched = sdk.get_pet(created.id)
+        return { created = created, fetched = fetched }
+    """
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": script
+    })
+    data = parse_result(result)
+    assert data["stats"]["api_calls"] == 2
+    r = data["result"]
+    assert r["created"]["name"] == "Ziggy"
+    assert r["fetched"]["name"] == "Ziggy"
+    assert r["created"]["id"] == r["fetched"]["id"]
+
+
+@pytest.mark.asyncio
+async def test_enum_values(mcp_stdio_session: ClientSession):
+    """sdk.list_pets(nil, "pending") -> all returned pets should have status "pending"."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": 'return sdk.list_pets(nil, "pending")'
+    })
+    data = parse_result(result)
+    pets = data["result"]
+    assert pets["total"] >= 1
+    for p in pets["items"]:
+        assert p["status"] == "pending"
+
+
+@pytest.mark.asyncio
+async def test_optional_fields(mcp_stdio_session: ClientSession):
+    """sdk.get_pet(4) -> Luna has no owner_id (should be null)."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": "return sdk.get_pet(4)"
+    })
+    data = parse_result(result)
+    pet = data["result"]
+    assert pet["name"] == "Luna"
+    assert pet["owner_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_script_error_handling(mcp_stdio_session: ClientSession):
+    """sdk.get_pet(9999) -> should get a 404 error, not crash."""
+    result = await mcp_stdio_session.call_tool("execute_script", {
+        "script": "return sdk.get_pet(9999)"
+    })
+    # The response should indicate an error
+    assert result.isError is True
+    text = result.content[0].text
+    assert "404" in text or "not found" in text.lower() or "error" in text.lower()
