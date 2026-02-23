@@ -1,10 +1,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use code_mcp::config::SpecInput;
+
 #[tokio::test]
 async fn test_generate_from_petstore() {
     let output_dir = tempfile::tempdir().unwrap();
     code_mcp::codegen::generate::generate(
-        &["testdata/petstore.yaml".to_string()],
+        &[SpecInput {
+            name: None,
+            source: "testdata/petstore.yaml".to_string(),
+        }],
         output_dir.path(),
     )
     .await

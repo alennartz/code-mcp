@@ -2,6 +2,7 @@
 
 use code_mcp::codegen::generate::generate;
 use code_mcp::codegen::manifest::Manifest;
+use code_mcp::config::SpecInput;
 use code_mcp::runtime::executor::{ExecutorConfig, ScriptExecutor};
 use code_mcp::runtime::http::{AuthCredentialsMap, HttpHandler};
 use std::sync::Arc;
@@ -10,9 +11,15 @@ use std::sync::Arc;
 async fn test_full_roundtrip_with_mock_api() {
     // 1. Generate from petstore spec
     let output_dir = tempfile::tempdir().unwrap();
-    generate(&["testdata/petstore.yaml".to_string()], output_dir.path())
-        .await
-        .unwrap();
+    generate(
+        &[SpecInput {
+            name: None,
+            source: "testdata/petstore.yaml".to_string(),
+        }],
+        output_dir.path(),
+    )
+    .await
+    .unwrap();
 
     // 2. Load manifest
     let manifest_str = std::fs::read_to_string(output_dir.path().join("manifest.json")).unwrap();
@@ -126,9 +133,15 @@ async fn test_full_roundtrip_with_mock_api() {
 async fn test_generated_lua_annotations_are_valid() {
     // Generate and verify the Lua annotation files have proper content
     let output_dir = tempfile::tempdir().unwrap();
-    generate(&["testdata/petstore.yaml".to_string()], output_dir.path())
-        .await
-        .unwrap();
+    generate(
+        &[SpecInput {
+            name: None,
+            source: "testdata/petstore.yaml".to_string(),
+        }],
+        output_dir.path(),
+    )
+    .await
+    .unwrap();
 
     let sdk_dir = output_dir.path().join("sdk");
     for entry in std::fs::read_dir(&sdk_dir).unwrap() {

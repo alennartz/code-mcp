@@ -8,6 +8,7 @@ use cli::{Cli, Command};
 
 use code_mcp::codegen::generate::generate;
 use code_mcp::codegen::manifest::Manifest;
+use code_mcp::config::SpecInput;
 use code_mcp::runtime::executor::ExecutorConfig;
 use code_mcp::runtime::http::{HttpHandler, load_auth_from_env};
 use code_mcp::server::CodeMcpServer;
@@ -18,7 +19,11 @@ async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
         Command::Generate { specs, output } => {
-            generate(&specs, &output).await?;
+            let spec_inputs: Vec<SpecInput> = specs
+                .into_iter()
+                .map(|source| SpecInput { name: None, source })
+                .collect();
+            generate(&spec_inputs, &output).await?;
             eprintln!("Generated output to {}", output.display());
             Ok(())
         }
@@ -59,7 +64,11 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let auth_config = build_auth_config(auth_authority, auth_audience, auth_jwks_uri)?;
             let tmpdir = tempfile::tempdir()?;
-            generate(&specs, tmpdir.path()).await?;
+            let spec_inputs: Vec<SpecInput> = specs
+                .into_iter()
+                .map(|source| SpecInput { name: None, source })
+                .collect();
+            generate(&spec_inputs, tmpdir.path()).await?;
             let manifest = load_manifest(tmpdir.path())?;
             serve(
                 manifest,
