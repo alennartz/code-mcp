@@ -17,19 +17,19 @@ app = FastAPI(
 def _downgrade_schema(obj: Any) -> Any:
     """Recursively convert OpenAPI 3.1 nullable patterns to 3.0.3 style."""
     if isinstance(obj, dict):
-        # Convert anyOf with null to nullable
         if "anyOf" in obj:
             non_null = [s for s in obj["anyOf"] if s != {"type": "null"}]
             if len(non_null) < len(obj["anyOf"]):
-                # There was a null type — convert to nullable
                 if len(non_null) == 1:
+                    del obj["anyOf"]
                     obj.update(non_null[0])
                     obj["nullable"] = True
-                    del obj["anyOf"]
                 else:
                     obj["anyOf"] = non_null
                     obj["nullable"] = True
-        return {k: _downgrade_schema(v) for k, v in obj.items()}
+        for k, v in obj.items():
+            obj[k] = _downgrade_schema(v)
+        return obj
     if isinstance(obj, list):
         return [_downgrade_schema(item) for item in obj]
     return obj
@@ -58,7 +58,7 @@ db_owners: dict[int, Owner] = seed_owners()
 next_pet_id: int = 5
 
 
-@app.post("/reset", tags=["admin"])
+@app.post("/reset", tags=["admin"], operation_id="reset_data")
 def reset_data() -> dict[str, str]:
     global db_pets, db_owners, next_pet_id
     db_pets = seed_pets()
@@ -67,7 +67,7 @@ def reset_data() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/pets", tags=["pets"])
+@app.get("/pets", tags=["pets"], operation_id="list_pets")
 def list_pets(
     limit: int | None = None,
     status: PetStatus | None = None,
@@ -81,7 +81,7 @@ def list_pets(
     return PetList(items=pets, total=total)
 
 
-@app.post("/pets", tags=["pets"], status_code=201, dependencies=[Depends(require_auth)])
+@app.post("/pets", tags=["pets"], status_code=201, dependencies=[Depends(require_auth)], operation_id="create_pet")
 def create_pet(body: PetCreate) -> Pet:
     global next_pet_id
     pet = Pet(id=next_pet_id, **body.model_dump())
@@ -90,14 +90,14 @@ def create_pet(body: PetCreate) -> Pet:
     return pet
 
 
-@app.get("/pets/{pet_id}", tags=["pets"])
+@app.get("/pets/{pet_id}", tags=["pets"], operation_id="get_pet")
 def get_pet(pet_id: int) -> Pet:
     if pet_id not in db_pets:
         raise HTTPException(status_code=404, detail="Pet not found")
     return db_pets[pet_id]
 
 
-@app.put("/pets/{pet_id}", tags=["pets"], dependencies=[Depends(require_auth)])
+@app.put("/pets/{pet_id}", tags=["pets"], dependencies=[Depends(require_auth)], operation_id="update_pet")
 def update_pet(pet_id: int, body: PetUpdate) -> Pet:
     if pet_id not in db_pets:
         raise HTTPException(status_code=404, detail="Pet not found")
@@ -107,7 +107,7 @@ def update_pet(pet_id: int, body: PetUpdate) -> Pet:
     return updated
 
 
-@app.delete("/pets/{pet_id}", tags=["pets"], dependencies=[Depends(require_auth)])
+@app.delete("/pets/{pet_id}", tags=["pets"], dependencies=[Depends(require_auth)], operation_id="delete_pet")
 def delete_pet(pet_id: int) -> dict[str, str]:
     if pet_id not in db_pets:
         raise HTTPException(status_code=404, detail="Pet not found")
@@ -115,12 +115,12 @@ def delete_pet(pet_id: int) -> dict[str, str]:
     return {"status": "deleted"}
 
 
-@app.get("/owners", tags=["owners"])
+@app.get("/owners", tags=["owners"], operation_id="list_owners")
 def list_owners() -> list[Owner]:
     return list(db_owners.values())
 
 
-@app.get("/owners/{owner_id}/pets", tags=["owners"])
+@app.get("/owners/{owner_id}/pets", tags=["owners"], operation_id="list_owner_pets")
 def list_owner_pets(owner_id: int) -> list[Pet]:
     if owner_id not in db_owners:
         raise HTTPException(status_code=404, detail="Owner not found")
