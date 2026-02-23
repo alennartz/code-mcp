@@ -173,3 +173,50 @@ async fn test_generated_lua_annotations_are_valid() {
         }
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_roundtrip_with_named_spec() {
+    let output_dir = tempfile::tempdir().unwrap();
+    generate(
+        &[SpecInput {
+            name: Some("mystore".to_string()),
+            source: "testdata/petstore.yaml".to_string(),
+        }],
+        output_dir.path(),
+    )
+    .await
+    .unwrap();
+
+    let manifest_str = std::fs::read_to_string(output_dir.path().join("manifest.json")).unwrap();
+    let manifest: Manifest = serde_json::from_str(&manifest_str).unwrap();
+
+    // API name should be the user-chosen name
+    assert_eq!(manifest.apis[0].name, "mystore");
+
+    // Functions should reference the user-chosen name
+    for func in &manifest.functions {
+        assert_eq!(func.api, "mystore");
+    }
+
+    // Execute a script to verify the SDK still works with the custom name
+    let handler = HttpHandler::mock(|method, url, _query, _body| {
+        if method == "GET" && url.contains("/pets/") {
+            Ok(serde_json::json!({"id": "pet-1", "name": "Buddy", "status": "available"}))
+        } else {
+            Err(anyhow::anyhow!("unexpected: {} {}", method, url))
+        }
+    });
+
+    let executor = ScriptExecutor::new(manifest, Arc::new(handler), ExecutorConfig::default());
+    let auth = AuthCredentialsMap::new();
+
+    let result = executor
+        .execute(
+            "local pet = sdk.get_pet_by_id('pet-1')\nreturn pet.name",
+            &auth,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(result.result, serde_json::json!("Buddy"));
+}
