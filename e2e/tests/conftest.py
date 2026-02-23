@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import os
 import socket
 import subprocess
 import time
@@ -114,29 +115,36 @@ def sign_jwt(jwt_keys):
 
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
 async def mcp_http_session(code_mcp_binary, openapi_spec_url, jwks_server, sign_jwt):
-    """Spawn code-mcp with HTTP transport + JWT auth, connect an MCP client."""
+    """Spawn code-mcp with HTTP transport + JWT auth, connect an MCP client.
+
+    If CODE_MCP_URL is set, connect to the external server instead.
+    """
     from mcp.client.streamable_http import streamable_http_client
 
-    port = _free_port()
-    env = {
-        "PATH": "/usr/bin:/bin",
-        "TEST_API_BEARER_TOKEN": "test-secret-123",
-    }
-    proc = subprocess.Popen(
-        [
-            str(code_mcp_binary), "run", openapi_spec_url,
-            "--transport", "http", "--port", str(port),
-            "--auth-authority", "test-issuer",
-            "--auth-audience", "test-audience",
-            "--auth-jwks-uri", f"{jwks_server}/jwks",
-        ],
-        env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
-
-    base_url = f"http://127.0.0.1:{port}"
-    _wait_for_http(f"{base_url}/.well-known/oauth-protected-resource")
+    external_url = os.environ.get("CODE_MCP_URL")
+    if external_url:
+        base_url = external_url
+        proc = None
+    else:
+        port = _free_port()
+        env = {
+            "PATH": "/usr/bin:/bin",
+            "TEST_API_BEARER_TOKEN": "test-secret-123",
+        }
+        proc = subprocess.Popen(
+            [
+                str(code_mcp_binary), "run", openapi_spec_url,
+                "--transport", "http", "--port", str(port),
+                "--auth-authority", "test-issuer",
+                "--auth-audience", "test-audience",
+                "--auth-jwks-uri", f"{jwks_server}/jwks",
+            ],
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        base_url = f"http://127.0.0.1:{port}"
+        _wait_for_http(f"{base_url}/.well-known/oauth-protected-resource")
 
     token = sign_jwt()
     headers = {"Authorization": f"Bearer {token}"}
@@ -170,13 +178,22 @@ async def mcp_http_session(code_mcp_binary, openapi_spec_url, jwks_server, sign_
             await task
         except (asyncio.CancelledError, Exception):
             pass
-    proc.terminate()
-    proc.wait(timeout=5)
+    if proc is not None:
+        proc.terminate()
+        proc.wait(timeout=5)
 
 
 @pytest.fixture(scope="session")
 def mcp_http_url(code_mcp_binary, openapi_spec_url, jwks_server):
-    """Spawn code-mcp with HTTP transport + JWT auth, yield the base URL."""
+    """Spawn code-mcp with HTTP transport + JWT auth, yield the base URL.
+
+    If CODE_MCP_URL is set, skip spawning and use the external server.
+    """
+    external_url = os.environ.get("CODE_MCP_URL")
+    if external_url:
+        yield external_url
+        return
+
     port = _free_port()
     env = {
         "PATH": "/usr/bin:/bin",
