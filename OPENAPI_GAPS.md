@@ -38,7 +38,7 @@ The project handles the core happy path well:
 |---|---------|---------------|----------------------|
 | 7 | **OAuth2 security schemes** | Most SaaS APIs use OAuth2 (Stripe, GitHub, Google, etc.). Currently only static token/key auth is supported. | ~40-50% of public APIs |
 | 8 | ~~**Header parameters (runtime)**~~ | ✅ Done — header params now wired through to HTTP requests. | ~30-40% of APIs |
-| 9 | ~~**`format` hints**~~ | ✅ Done — format strings surfaced in Luau annotation comments. | ~60-70% of schemas use format |
+| 9 | ~~**`format` hints + runtime validation**~~ | ✅ Done — format strings surfaced in Luau annotations AND validated at runtime (uuid, date-time, date, email, uri, ipv4, ipv6, hostname, int32, int64). Enum values also enforced. | ~60-70% of schemas use format |
 | 10 | **Multipart/form-data & file uploads** | File uploads, image processing APIs, document APIs. `string` + `format: binary`. | ~20-30% of APIs |
 | 11 | **`readOnly` / `writeOnly`** | `id` is readOnly (don't send on create), `password` is writeOnly (never returned). Important for accurate request vs. response types. | ~30-40% of CRUD APIs |
 | 12 | **Multiple servers** | Only `servers[0]` is used. APIs commonly list staging, production, and sandbox URLs. | ~30% of specs list >1 server |
@@ -86,7 +86,7 @@ Sequenced by impact (next items to tackle):
 5. ~~**Error response schemas**~~ ✅
 6. **Form-encoded request bodies** — unblocks OAuth token endpoints and payment APIs.
 7. ~~**Header parameters at runtime**~~ ✅
-8. ~~**`format` pass-through**~~ ✅
+8. ~~**`format` validation (annotations + runtime)**~~ ✅
 9. **OAuth2** — large class of APIs become usable.
 10. **`readOnly`/`writeOnly`** — generate separate request/response types.
 
@@ -102,7 +102,8 @@ Sequenced by impact (next items to tackle):
 | Response extraction | `src/codegen/parser.rs` | All 2xx status codes + default checked |
 | Auth detection | `src/codegen/parser.rs` | Bearer/Basic/API-Key only |
 | Server URL | `src/codegen/parser.rs` | First server only, no variables |
-| Runtime param handling | `src/runtime/registry.rs` | Path, query, and header params all wired to HTTP |
+| Runtime param handling | `src/runtime/registry.rs` | Path, query, and header params all wired to HTTP. Enum + format validated before request |
+| Param validation | `src/runtime/validate.rs` | Enum values enforced, 10 format validators (uuid, date-time, date, email, uri, ipv4, ipv6, hostname, int32, int64) |
 | HTTP layer | `src/runtime/http.rs` | Custom headers supported. All bodies still sent as application/json |
-| Manifest types | `src/codegen/manifest.rs` | Map type, nullable, format fields added. No readOnly/writeOnly yet |
+| Manifest types | `src/codegen/manifest.rs` | Map type, nullable, format fields on FieldDef and ParamDef. No readOnly/writeOnly yet |
 | Luau annotations | `src/codegen/annotations.rs` | Map types rendered. No union types for oneOf yet |
