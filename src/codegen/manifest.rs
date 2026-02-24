@@ -65,6 +65,8 @@ pub struct ParamDef {
     pub description: Option<String>,
     pub default: Option<serde_json::Value>,
     pub enum_values: Option<Vec<String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub format: Option<String>,
 }
 
 /// Where a parameter is located in the request.
@@ -171,6 +173,7 @@ mod tests {
                             "pending".to_string(),
                             "sold".to_string(),
                         ]),
+                        format: None,
                     },
                     ParamDef {
                         name: "limit".to_string(),
@@ -180,6 +183,7 @@ mod tests {
                         description: Some("Max items to return".to_string()),
                         default: Some(serde_json::Value::Number(20.into())),
                         enum_values: None,
+                        format: None,
                     },
                 ],
                 request_body: None,
@@ -375,6 +379,7 @@ mod tests {
                     description: None,
                     default: None,
                     enum_values: None,
+                    format: None,
                 }],
                 request_body: None,
                 response_schema: None,

@@ -248,6 +248,7 @@ fn extract_parameters(params: &[ReferenceOr<Parameter>], spec: &OpenAPI) -> Resu
             description: data.description.clone(),
             default: default_val,
             enum_values,
+            format: None,
         });
     }
 
