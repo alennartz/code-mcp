@@ -399,20 +399,16 @@ fn extract_ref_name<T>(ref_or: &ReferenceOr<T>) -> Option<String> {
 }
 
 fn extract_response_schema(responses: &openapiv3::Responses) -> Option<String> {
-    // Check the 200 and 201 responses for a schema reference
-    for code in &[
-        openapiv3::StatusCode::Code(200),
-        openapiv3::StatusCode::Code(201),
-    ] {
-        if let Some(ReferenceOr::Item(response)) = responses.responses.get(code)
+    // Check all 2xx responses for a schema reference
+    for code in 200..=299u16 {
+        let status = openapiv3::StatusCode::Code(code);
+        if let Some(ReferenceOr::Item(response)) = responses.responses.get(&status)
             && let Some(media_type) = response.content.get("application/json")
             && let Some(schema_ref) = &media_type.schema
         {
-            // Direct $ref
             if let Some(name) = extract_ref_name(schema_ref) {
                 return Some(name);
             }
-            // Array of $ref
             if let ReferenceOr::Item(schema) = schema_ref
                 && let SchemaKind::Type(Type::Array(arr)) = &schema.schema_kind
                 && let Some(items) = &arr.items
@@ -1270,5 +1266,46 @@ mod tests {
             "Header param X-Idempotency-Key should be extracted"
         );
         assert!(idemp.unwrap().required);
+    }
+
+    #[test]
+    fn test_response_schema_202_accepted() {
+        let yaml = r##"
+openapi: "3.0.3"
+info:
+  title: Test
+  version: "1.0.0"
+paths:
+  /jobs:
+    post:
+      operationId: createJob
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+components:
+  schemas:
+    Job:
+      type: object
+      properties:
+        id:
+          type: string
+"##;
+        let spec: OpenAPI = serde_yaml::from_str(yaml).unwrap();
+        let manifest = spec_to_manifest(&spec, "test").unwrap();
+
+        let create_job = manifest
+            .functions
+            .iter()
+            .find(|f| f.name == "create_job")
+            .unwrap();
+        assert_eq!(
+            create_job.response_schema.as_deref(),
+            Some("Job"),
+            "Should extract schema from 202 response"
+        );
     }
 }
