@@ -82,6 +82,7 @@ pub fn register_functions(
             let mut url = base_url.clone();
             let mut path = func_def.path.clone();
             let mut query_params: Vec<(String, String)> = Vec::new();
+            let mut header_params: Vec<(String, String)> = Vec::new();
 
             // Total expected positional params (not counting body)
             let param_count = func_def.parameters.len();
@@ -122,7 +123,7 @@ pub fn register_functions(
                         query_params.push((param.name.clone(), str_value));
                     }
                     ParamLocation::Header => {
-                        // Headers are handled at HTTP level; for now skip
+                        header_params.push((param.name.clone(), str_value));
                     }
                 }
             }
@@ -178,6 +179,7 @@ pub fn register_functions(
                     auth_config_owned.as_ref(),
                     &api_creds,
                     &query_params,
+                    &header_params,
                     body.as_ref(),
                 ))
             })
@@ -448,5 +450,77 @@ mod tests {
         let body = body.unwrap();
         assert_eq!(body["name"], "Buddy");
         assert_eq!(body["status"], "available");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn test_header_params_sent() {
+        let captured_headers = Arc::new(Mutex::new(Vec::<(String, String)>::new()));
+        let captured_headers_clone = Arc::clone(&captured_headers);
+
+        let manifest = Manifest {
+            apis: vec![ApiConfig {
+                name: "testapi".to_string(),
+                base_url: "https://api.example.com".to_string(),
+                description: None,
+                version: None,
+                auth: None,
+            }],
+            functions: vec![FunctionDef {
+                name: "do_thing".to_string(),
+                api: "testapi".to_string(),
+                tag: None,
+                method: HttpMethod::Get,
+                path: "/things".to_string(),
+                summary: None,
+                description: None,
+                deprecated: false,
+                parameters: vec![
+                    ParamDef {
+                        name: "X-Request-ID".to_string(),
+                        location: ParamLocation::Header,
+                        param_type: ParamType::String,
+                        required: true,
+                        description: None,
+                        default: None,
+                        enum_values: None,
+                    },
+                    ParamDef {
+                        name: "limit".to_string(),
+                        location: ParamLocation::Query,
+                        param_type: ParamType::Integer,
+                        required: false,
+                        description: None,
+                        default: None,
+                        enum_values: None,
+                    },
+                ],
+                request_body: None,
+                response_schema: None,
+            }],
+            schemas: vec![],
+        };
+
+        let sb = Sandbox::new(SandboxConfig::default()).unwrap();
+        let handler = Arc::new(HttpHandler::mock_with_headers(
+            move |_method, _url, _query, headers, _body| {
+                *captured_headers_clone.lock().unwrap() = headers.to_vec();
+                Ok(serde_json::json!({"ok": true}))
+            },
+        ));
+        let creds = Arc::new(AuthCredentialsMap::new());
+        let counter = Arc::new(AtomicUsize::new(0));
+
+        register_functions(&sb, &manifest, handler, creds, counter, None).unwrap();
+
+        sb.eval::<Value>(r#"sdk.do_thing("trace-123", 10)"#)
+            .unwrap();
+
+        let headers = captured_headers.lock().unwrap().clone();
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "X-Request-ID" && v == "trace-123"),
+            "Header param not sent. Got: {headers:?}"
+        );
     }
 }
