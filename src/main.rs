@@ -1,5 +1,6 @@
 mod cli;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -39,7 +40,8 @@ async fn main() -> anyhow::Result<()> {
             config,
         } => {
             let spec_inputs = resolve_spec_inputs(&specs, config.as_deref())?;
-            generate(&spec_inputs, &output).await?;
+            let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
+            generate(&spec_inputs, &output, &HashMap::new(), &no_frozen).await?;
             eprintln!("Generated output to {}", output.display());
             Ok(())
         }
@@ -92,7 +94,8 @@ async fn main() -> anyhow::Result<()> {
             let mcp_auth = build_mcp_auth_config(auth_authority, auth_audience, auth_jwks_uri)?;
             let (spec_inputs, config_obj) = resolve_run_inputs(&specs, config.as_deref())?;
             let tmpdir = tempfile::tempdir()?;
-            generate(&spec_inputs, tmpdir.path()).await?;
+            let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
+            generate(&spec_inputs, tmpdir.path(), &HashMap::new(), &no_frozen).await?;
             let manifest = load_manifest(tmpdir.path())?;
             let api_names: Vec<String> = manifest.apis.iter().map(|a| a.name.clone()).collect();
             // Start with config auth, then layer CLI --auth on top (CLI wins per-key)

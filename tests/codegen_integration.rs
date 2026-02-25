@@ -1,17 +1,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use std::collections::HashMap;
+
 use code_mcp::codegen::manifest::FieldType;
 use code_mcp::config::SpecInput;
 
 #[tokio::test]
 async fn test_generate_from_petstore() {
     let output_dir = tempfile::tempdir().unwrap();
+    let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
     code_mcp::codegen::generate::generate(
         &[SpecInput {
             name: None,
             source: "testdata/petstore.yaml".to_string(),
         }],
         output_dir.path(),
+        &HashMap::new(),
+        &no_frozen,
     )
     .await
     .unwrap();
@@ -59,12 +64,15 @@ async fn test_generate_from_petstore() {
 #[tokio::test]
 async fn test_generate_from_advanced() {
     let output_dir = tempfile::tempdir().unwrap();
+    let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
     code_mcp::codegen::generate::generate(
         &[SpecInput {
             name: None,
             source: "testdata/advanced.yaml".to_string(),
         }],
         output_dir.path(),
+        &HashMap::new(),
+        &no_frozen,
     )
     .await
     .unwrap();

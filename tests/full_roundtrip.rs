@@ -1,22 +1,27 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use std::collections::HashMap;
+use std::sync::Arc;
+
 use code_mcp::codegen::generate::generate;
 use code_mcp::codegen::manifest::Manifest;
 use code_mcp::config::SpecInput;
 use code_mcp::runtime::executor::{ExecutorConfig, ScriptExecutor};
 use code_mcp::runtime::http::{AuthCredentialsMap, HttpHandler};
-use std::sync::Arc;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_full_roundtrip_with_mock_api() {
     // 1. Generate from petstore spec
     let output_dir = tempfile::tempdir().unwrap();
+    let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
     generate(
         &[SpecInput {
             name: None,
             source: "testdata/petstore.yaml".to_string(),
         }],
         output_dir.path(),
+        &HashMap::new(),
+        &no_frozen,
     )
     .await
     .unwrap();
@@ -133,12 +138,15 @@ async fn test_full_roundtrip_with_mock_api() {
 async fn test_generated_lua_annotations_are_valid() {
     // Generate and verify the Lua annotation files have proper content
     let output_dir = tempfile::tempdir().unwrap();
+    let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
     generate(
         &[SpecInput {
             name: None,
             source: "testdata/petstore.yaml".to_string(),
         }],
         output_dir.path(),
+        &HashMap::new(),
+        &no_frozen,
     )
     .await
     .unwrap();
@@ -172,12 +180,15 @@ async fn test_generated_lua_annotations_are_valid() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_roundtrip_with_named_spec() {
     let output_dir = tempfile::tempdir().unwrap();
+    let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
     generate(
         &[SpecInput {
             name: Some("mystore".to_string()),
             source: "testdata/petstore.yaml".to_string(),
         }],
         output_dir.path(),
+        &HashMap::new(),
+        &no_frozen,
     )
     .await
     .unwrap();

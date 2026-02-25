@@ -524,7 +524,7 @@ mod tests {
         };
         let json = serde_json::to_string(&field).unwrap();
         let roundtripped: FieldDef = serde_json::from_str(&json).unwrap();
-        assert_eq!(roundtripped.nullable, true);
+        assert!(roundtripped.nullable);
         assert_eq!(roundtripped.format.as_deref(), Some("date-time"));
     }
 }
