@@ -249,6 +249,7 @@ fn extract_parameters(params: &[ReferenceOr<Parameter>], spec: &OpenAPI) -> Resu
             default: default_val,
             enum_values,
             format,
+            frozen_value: None,
         });
     }
 
@@ -1476,7 +1477,7 @@ components:
 
     #[test]
     fn test_response_schema_204_no_content() {
-        let yaml = r##"
+        let yaml = r#"
 openapi: "3.0.3"
 info:
   title: Test
@@ -1494,7 +1495,7 @@ paths:
       responses:
         "204":
           description: Deleted
-"##;
+"#;
         let spec: OpenAPI = serde_yaml::from_str(yaml).unwrap();
         let manifest = spec_to_manifest(&spec, "test").unwrap();
 

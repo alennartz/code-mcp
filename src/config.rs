@@ -35,11 +35,15 @@ pub struct ConfigApiEntry {
     pub auth: Option<ConfigAuth>,
     #[serde(default)]
     pub auth_env: Option<String>,
+    #[serde(default)]
+    pub frozen_params: Option<HashMap<String, String>>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CodeMcpConfig {
     pub apis: HashMap<String, ConfigApiEntry>,
+    #[serde(default)]
+    pub frozen_params: Option<HashMap<String, String>>,
 }
 
 /// Parses `name=source` or plain `source`.
@@ -97,6 +101,20 @@ pub fn load_config(path: &Path) -> anyhow::Result<CodeMcpConfig> {
     let config: CodeMcpConfig = toml::from_str(&content)
         .map_err(|e| anyhow::anyhow!("failed to parse config file {}: {e}", path.display()))?;
     Ok(config)
+}
+
+/// Merge global and per-API frozen params. Per-API values override global.
+pub fn merge_frozen_params<S: std::hash::BuildHasher>(
+    global: Option<&HashMap<String, String, S>>,
+    per_api: Option<&HashMap<String, String, S>>,
+) -> HashMap<String, String> {
+    let mut merged: HashMap<String, String> = global
+        .map(|g| g.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        .unwrap_or_default();
+    if let Some(api_params) = per_api {
+        merged.extend(api_params.iter().map(|(k, v)| (k.clone(), v.clone())));
+    }
+    merged
 }
 
 /// Read env vars and build auth map from CLI `--auth` arguments.
@@ -426,9 +444,13 @@ auth_env = "MY_API_TOKEN"
                 spec: "petstore.yaml".to_string(),
                 auth: Some(ConfigAuth::Direct("sk-direct-token".to_string())),
                 auth_env: None,
+                frozen_params: None,
             },
         );
-        let config = CodeMcpConfig { apis };
+        let config = CodeMcpConfig {
+            apis,
+            frozen_params: None,
+        };
         let result = resolve_config_auth(&config).unwrap();
 
         match &result["petstore"] {
@@ -450,9 +472,13 @@ auth_env = "MY_API_TOKEN"
                     password: "hunter2".to_string(),
                 }),
                 auth_env: None,
+                frozen_params: None,
             },
         );
-        let config = CodeMcpConfig { apis };
+        let config = CodeMcpConfig {
+            apis,
+            frozen_params: None,
+        };
         let result = resolve_config_auth(&config).unwrap();
 
         match &result["myapi"] {
@@ -477,9 +503,13 @@ auth_env = "MY_API_TOKEN"
                     auth_env: "TEST_CONFIG_ENV_REF".to_string(),
                 }),
                 auth_env: None,
+                frozen_params: None,
             },
         );
-        let config = CodeMcpConfig { apis };
+        let config = CodeMcpConfig {
+            apis,
+            frozen_params: None,
+        };
         let result = resolve_config_auth(&config).unwrap();
         unsafe { std::env::remove_var("TEST_CONFIG_ENV_REF") };
 
@@ -487,5 +517,56 @@ auth_env = "MY_API_TOKEN"
             AuthCredentials::BearerToken(t) => assert_eq!(t, "envtoken999"),
             other => panic!("Expected BearerToken, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn test_load_config_with_frozen_params() {
+        let toml_content = r#"
+[frozen_params]
+api_version = "v2"
+
+[apis.petstore]
+spec = "petstore.yaml"
+
+[apis.petstore.frozen_params]
+tenant_id = "abc-123"
+"#;
+        let mut tmpfile = tempfile::NamedTempFile::new().unwrap();
+        tmpfile.write_all(toml_content.as_bytes()).unwrap();
+
+        let config = load_config(tmpfile.path()).unwrap();
+        let global = config.frozen_params.as_ref().unwrap();
+        assert_eq!(global.get("api_version").unwrap(), "v2");
+
+        let api_frozen = config.apis["petstore"].frozen_params.as_ref().unwrap();
+        assert_eq!(api_frozen.get("tenant_id").unwrap(), "abc-123");
+    }
+
+    #[test]
+    fn test_load_config_without_frozen_params() {
+        let toml_content = r#"
+[apis.petstore]
+spec = "petstore.yaml"
+"#;
+        let mut tmpfile = tempfile::NamedTempFile::new().unwrap();
+        tmpfile.write_all(toml_content.as_bytes()).unwrap();
+
+        let config = load_config(tmpfile.path()).unwrap();
+        assert!(config.frozen_params.is_none());
+        assert!(config.apis["petstore"].frozen_params.is_none());
+    }
+
+    #[test]
+    fn test_merge_frozen_params_precedence() {
+        let mut global = HashMap::new();
+        global.insert("api_version".to_string(), "v1".to_string());
+        global.insert("tenant".to_string(), "default".to_string());
+
+        let mut per_api = HashMap::new();
+        per_api.insert("api_version".to_string(), "v2".to_string());
+
+        let merged = merge_frozen_params(Some(&global), Some(&per_api));
+        assert_eq!(merged.get("api_version").unwrap(), "v2"); // per-API wins
+        assert_eq!(merged.get("tenant").unwrap(), "default"); // global preserved
     }
 }

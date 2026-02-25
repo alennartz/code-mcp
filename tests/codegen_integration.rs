@@ -1,17 +1,22 @@
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use std::collections::HashMap;
+
 use code_mcp::codegen::manifest::FieldType;
 use code_mcp::config::SpecInput;
 
 #[tokio::test]
 async fn test_generate_from_petstore() {
     let output_dir = tempfile::tempdir().unwrap();
+    let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
     code_mcp::codegen::generate::generate(
         &[SpecInput {
             name: None,
             source: "testdata/petstore.yaml".to_string(),
         }],
         output_dir.path(),
+        &HashMap::new(),
+        &no_frozen,
     )
     .await
     .unwrap();
@@ -59,12 +64,15 @@ async fn test_generate_from_petstore() {
 #[tokio::test]
 async fn test_generate_from_advanced() {
     let output_dir = tempfile::tempdir().unwrap();
+    let no_frozen: HashMap<String, HashMap<String, String>> = HashMap::new();
     code_mcp::codegen::generate::generate(
         &[SpecInput {
             name: None,
             source: "testdata/advanced.yaml".to_string(),
         }],
         output_dir.path(),
+        &HashMap::new(),
+        &no_frozen,
     )
     .await
     .unwrap();
@@ -152,4 +160,58 @@ async fn test_generate_from_advanced() {
         content.contains("(uuid)") || content.contains("(date-time)"),
         "Luau file should contain format comments like (uuid) or (date-time). Got:\n{content}"
     );
+}
+
+#[tokio::test]
+async fn test_frozen_params_end_to_end() {
+    let output_dir = tempfile::tempdir().unwrap();
+    let mut per_api_frozen = HashMap::new();
+    let mut petstore_frozen = HashMap::new();
+    petstore_frozen.insert("limit".to_string(), "25".to_string());
+    per_api_frozen.insert("petstore".to_string(), petstore_frozen);
+
+    code_mcp::codegen::generate::generate(
+        &[SpecInput {
+            name: Some("petstore".to_string()),
+            source: "testdata/petstore.yaml".to_string(),
+        }],
+        output_dir.path(),
+        &HashMap::new(),
+        &per_api_frozen,
+    )
+    .await
+    .unwrap();
+
+    // Check manifest has frozen_value set
+    let manifest: code_mcp::codegen::manifest::Manifest = serde_json::from_str(
+        &std::fs::read_to_string(output_dir.path().join("manifest.json")).unwrap(),
+    )
+    .unwrap();
+
+    let list_pets = manifest
+        .functions
+        .iter()
+        .find(|f| f.name == "list_pets")
+        .unwrap();
+    let limit = list_pets
+        .parameters
+        .iter()
+        .find(|p| p.name == "limit")
+        .unwrap();
+    assert_eq!(limit.frozen_value, Some("25".to_string()));
+
+    // Check that Luau function signature doesn't mention the frozen param
+    let sdk_dir = output_dir.path().join("sdk");
+    for entry in std::fs::read_dir(&sdk_dir).unwrap() {
+        let entry = entry.unwrap();
+        let content = std::fs::read_to_string(entry.path()).unwrap();
+        for line in content.lines() {
+            if line.contains("function sdk.list_pets") {
+                assert!(
+                    !line.contains("limit"),
+                    "Frozen param 'limit' should not appear in Luau function signature. Got:\n{line}"
+                );
+            }
+        }
+    }
 }
