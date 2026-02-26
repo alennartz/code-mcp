@@ -2,7 +2,7 @@
 
 ## Overview
 
-Add authentication and upstream credential handling to code-mcp's HTTP/SSE transport. Two independent layers:
+Add authentication and upstream credential handling to toolscript's HTTP/SSE transport. Two independent layers:
 
 1. **MCP layer** — OAuth 2.1 resource server. Validates client identity via JWT (audience + issuer). No scopes or RBAC.
 2. **Upstream layer** — Client-provided credentials via `_meta.auth` on tool calls. Falls back to server-side env vars.
@@ -16,7 +16,7 @@ The HTTP transport currently accepts all connections without authentication. Whe
 ## Architecture
 
 ```
-MCP Client                    code-mcp (HTTP)                 Upstream API
+MCP Client                    toolscript (HTTP)                 Upstream API
     │                              │                              │
     │── Authorization: Bearer JWT ─→│                              │
     │   _meta.auth.petstore: sk-.. │                              │
@@ -78,7 +78,7 @@ Stored in http request extensions. Flows through rmcp's `StreamableHttpService` 
 CLI flags:
 
 ```bash
-code-mcp serve ./output/ --transport sse --port 8080 \
+toolscript serve ./output/ --transport sse --port 8080 \
   --auth-authority https://auth.example.com \
   --auth-audience https://mcp.example.com
 ```

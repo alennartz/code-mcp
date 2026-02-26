@@ -1,8 +1,8 @@
-# code-mcp Design
+# toolscript Design
 
 ## Overview
 
-code-mcp is a tool that takes OpenAPI specifications and generates an MCP server with a Lua scripting runtime. Instead of exposing individual API endpoints as separate MCP tools, it gives the LLM an SDK and a script executor — allowing it to chain multiple API calls in a single round-trip.
+toolscript is a tool that takes OpenAPI specifications and generates an MCP server with a Lua scripting runtime. Instead of exposing individual API endpoints as separate MCP tools, it gives the LLM an SDK and a script executor — allowing it to chain multiple API calls in a single round-trip.
 
 ## Approach
 
@@ -12,14 +12,14 @@ code-mcp is a tool that takes OpenAPI specifications and generates an MCP server
 
 The CLI has three modes:
 
-- **`code-mcp run <spec-source...>`** — Generate then serve in one step. The default happy path.
-- **`code-mcp generate <spec-source...> -o ./output/`** — Generate manifest and SDK annotations only, for inspection or customization.
-- **`code-mcp serve ./output/`** — Start the MCP server from a pre-generated directory.
+- **`toolscript run <spec-source...>`** — Generate then serve in one step. The default happy path.
+- **`toolscript generate <spec-source...> -o ./output/`** — Generate manifest and SDK annotations only, for inspection or customization.
+- **`toolscript serve ./output/`** — Start the MCP server from a pre-generated directory.
 
 Spec sources can be local file paths or URLs.
 
 ```
-code-mcp run <spec-source...>
+toolscript run <spec-source...>
   1. Fetch/read spec(s)
   2. Generate manifest + annotations to temp dir
   3. Start MCP server from that dir
@@ -233,16 +233,16 @@ Phases: `parse`, `execution`, `api_call`, `timeout`, `validation`.
 ### Binary
 
 ```bash
-cargo install code-mcp
-code-mcp run https://api.example.com/openapi.json
+cargo install toolscript
+toolscript run https://api.example.com/openapi.json
 ```
 
 ### Container
 
 ```bash
-docker run code-mcp https://api.example.com/openapi.json
-docker run -p 8080:8080 code-mcp --transport sse --port 8080 https://api.example.com/openapi.json
-docker run -e API_KEY=sk-... code-mcp https://api.example.com/openapi.json
+docker run toolscript https://api.example.com/openapi.json
+docker run -p 8080:8080 toolscript --transport sse --port 8080 https://api.example.com/openapi.json
+docker run -e API_KEY=sk-... toolscript https://api.example.com/openapi.json
 ```
 
 ### MCP Client Configuration
@@ -251,7 +251,7 @@ docker run -e API_KEY=sk-... code-mcp https://api.example.com/openapi.json
 {
   "mcpServers": {
     "petstore": {
-      "command": "code-mcp",
+      "command": "toolscript",
       "args": ["run", "https://petstore.example.com/openapi.json"],
       "env": { "PETSTORE_API_KEY": "sk-..." }
     }

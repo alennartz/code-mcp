@@ -2,7 +2,7 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Rebrand the entire repository from `code-mcp` to `toolscript` across all naming conventions, files, configs, docs, CI, and GitHub.
+**Goal:** Rebrand the entire repository from `toolscript` to `toolscript` across all naming conventions, files, configs, docs, CI, and GitHub.
 
 **Architecture:** Systematic find-and-replace across four naming conventions (kebab, PascalCase, snake_case, SCREAMING_CASE), staged by layer with build verification between stages. File renames as a final code step, then GitHub repo rename.
 
@@ -20,7 +20,7 @@
 
 In `Cargo.toml`, change line 2:
 ```
-name = "code-mcp"
+name = "toolscript"
 ```
 to:
 ```
@@ -31,7 +31,7 @@ name = "toolscript"
 
 On line 5, change:
 ```rust
-#[command(name = "code-mcp", about = "Generate MCP servers from OpenAPI specs")]
+#[command(name = "toolscript", about = "Generate MCP servers from OpenAPI specs")]
 ```
 to:
 ```rust
@@ -40,11 +40,11 @@ to:
 
 **Step 3: Update all test parse_from calls in src/cli.rs**
 
-Replace every `"code-mcp"` string in `Cli::parse_from` calls (lines 90, 108, 121, 141, 160, 178, 196, 213, 224, 236) with `"toolscript"`. There are 11 occurrences total.
+Replace every `"toolscript"` string in `Cli::parse_from` calls (lines 90, 108, 121, 141, 160, 178, 196, 213, 224, 236) with `"toolscript"`. There are 11 occurrences total.
 
 Also update the config file assertion on line 112:
 ```rust
-assert_eq!(config.unwrap().to_str().unwrap(), "code-mcp.toml");
+assert_eq!(config.unwrap().to_str().unwrap(), "toolscript.toml");
 ```
 to:
 ```rust
@@ -53,7 +53,7 @@ assert_eq!(config.unwrap().to_str().unwrap(), "toolscript.toml");
 
 And update the test input on line 108:
 ```rust
-let cli = Cli::parse_from(["code-mcp", "run", "--config", "code-mcp.toml"]);
+let cli = Cli::parse_from(["toolscript", "run", "--config", "toolscript.toml"]);
 ```
 to:
 ```rust
@@ -69,7 +69,7 @@ Expected: Build succeeds (may have warnings about unused imports since we haven'
 
 ```bash
 git add Cargo.toml src/cli.rs
-git commit -m "refactor: rename package and CLI from code-mcp to toolscript"
+git commit -m "refactor: rename package and CLI from toolscript to toolscript"
 ```
 
 ---
@@ -77,36 +77,36 @@ git commit -m "refactor: rename package and CLI from code-mcp to toolscript"
 ### Task 2: Rename Rust types and crate imports
 
 **Files:**
-- Modify: `src/config.rs:51` — `CodeMcpConfig` → `ToolScriptConfig`
-- Modify: `src/server/mod.rs:23,36,134,296-297` — `CodeMcpServer` → `ToolScriptServer`
+- Modify: `src/config.rs:51` — `ToolScriptConfig` → `ToolScriptConfig`
+- Modify: `src/server/mod.rs:23,36,134,296-297` — `ToolScriptServer` → `ToolScriptServer`
 - Modify: `src/server/mod.rs:111-112` — server info name/title strings
-- Modify: `src/main.rs:10-18` — all `use code_mcp::` → `use tool_script::`, `CodeMcpConfig` → `ToolScriptConfig`, `CodeMcpServer` → `ToolScriptServer`
-- Modify: `src/main.rs:151,178,196-197,210,219,247,280,336,344,360,370,374` — all remaining `CodeMcpConfig` and `CodeMcpServer` references
-- Modify: `tests/full_roundtrip.rs:6-10` — `use code_mcp::` → `use tool_script::`
-- Modify: `tests/codegen_integration.rs:5-6` — `use code_mcp::` → `use tool_script::`
-- Modify: `tests/http_auth_test.rs:9` — `code_mcp::` → `tool_script::`
+- Modify: `src/main.rs:10-18` — all `use tool_script::` → `use tool_script::`, `ToolScriptConfig` → `ToolScriptConfig`, `ToolScriptServer` → `ToolScriptServer`
+- Modify: `src/main.rs:151,178,196-197,210,219,247,280,336,344,360,370,374` — all remaining `ToolScriptConfig` and `ToolScriptServer` references
+- Modify: `tests/full_roundtrip.rs:6-10` — `use tool_script::` → `use tool_script::`
+- Modify: `tests/codegen_integration.rs:5-6` — `use tool_script::` → `use tool_script::`
+- Modify: `tests/http_auth_test.rs:9` — `tool_script::` → `tool_script::`
 
-**Step 1: Rename CodeMcpConfig in src/config.rs**
+**Step 1: Rename ToolScriptConfig in src/config.rs**
 
 On line 51, change:
 ```rust
-pub struct CodeMcpConfig {
+pub struct ToolScriptConfig {
 ```
 to:
 ```rust
 pub struct ToolScriptConfig {
 ```
 
-Then replace all remaining `CodeMcpConfig` occurrences in `src/config.rs` (in function signatures and test code) with `ToolScriptConfig`.
+Then replace all remaining `ToolScriptConfig` occurrences in `src/config.rs` (in function signatures and test code) with `ToolScriptConfig`.
 
-**Step 2: Rename CodeMcpServer in src/server/mod.rs**
+**Step 2: Rename ToolScriptServer in src/server/mod.rs**
 
-Replace all `CodeMcpServer` with `ToolScriptServer` in `src/server/mod.rs`.
+Replace all `ToolScriptServer` with `ToolScriptServer` in `src/server/mod.rs`.
 
 Update the server info strings on lines 111-112:
 ```rust
-name: "code-mcp".to_string(),
-title: Some("code-mcp".to_string()),
+name: "toolscript".to_string(),
+title: Some("toolscript".to_string()),
 ```
 to:
 ```rust
@@ -116,17 +116,17 @@ title: Some("toolscript".to_string()),
 
 **Step 3: Update crate imports in src/main.rs**
 
-Replace all `use code_mcp::` with `use tool_script::` (lines 10-19).
-Replace all `CodeMcpConfig` with `ToolScriptConfig`.
-Replace all `CodeMcpServer` with `ToolScriptServer`.
-Replace `code_mcp::server::tools::` with `tool_script::server::tools::` (lines 396-401).
-Replace `code_mcp::server::auth::` with `tool_script::server::auth::` (line 374).
+Replace all `use tool_script::` with `use tool_script::` (lines 10-19).
+Replace all `ToolScriptConfig` with `ToolScriptConfig`.
+Replace all `ToolScriptServer` with `ToolScriptServer`.
+Replace `tool_script::server::tools::` with `tool_script::server::tools::` (lines 396-401).
+Replace `tool_script::server::auth::` with `tool_script::server::auth::` (line 374).
 
 **Step 4: Update auto-discovery config filename in src/main.rs**
 
 On line 196, change:
 ```rust
-let default_path = Path::new("code-mcp.toml");
+let default_path = Path::new("toolscript.toml");
 ```
 to:
 ```rust
@@ -135,7 +135,7 @@ let default_path = Path::new("toolscript.toml");
 
 On line 210, change the error message:
 ```rust
-"no specs provided. Pass spec paths/URLs, use --config, or create code-mcp.toml"
+"no specs provided. Pass spec paths/URLs, use --config, or create toolscript.toml"
 ```
 to:
 ```rust
@@ -144,7 +144,7 @@ to:
 
 On line 174, update the doc comment:
 ```rust
-/// Supports auto-discovery of `code-mcp.toml` when no specs or config are provided.
+/// Supports auto-discovery of `toolscript.toml` when no specs or config are provided.
 ```
 to:
 ```rust
@@ -155,7 +155,7 @@ to:
 
 On line 280, change:
 ```rust
-.unwrap_or_else(|| PathBuf::from("./code-mcp-output"));
+.unwrap_or_else(|| PathBuf::from("./toolscript-output"));
 ```
 to:
 ```rust
@@ -166,7 +166,7 @@ to:
 
 On line 417, change:
 ```rust
-"resource_documentation": "https://github.com/alenna/code-mcp",
+"resource_documentation": "https://github.com/alenna/toolscript",
 ```
 to:
 ```rust
@@ -177,7 +177,7 @@ to:
 
 On line 336, change:
 ```rust
-/// Create a `CodeMcpServer` from a manifest and serve it with the given transport.
+/// Create a `ToolScriptServer` from a manifest and serve it with the given transport.
 ```
 to:
 ```rust
@@ -186,11 +186,11 @@ to:
 
 **Step 8: Update test imports**
 
-In `tests/full_roundtrip.rs`, replace all `use code_mcp::` with `use tool_script::` (lines 6-10).
+In `tests/full_roundtrip.rs`, replace all `use tool_script::` with `use tool_script::` (lines 6-10).
 
-In `tests/codegen_integration.rs`, replace all `use code_mcp::` with `use tool_script::` (lines 5-6).
+In `tests/codegen_integration.rs`, replace all `use tool_script::` with `use tool_script::` (lines 5-6).
 
-In `tests/http_auth_test.rs`, replace `code_mcp::` with `tool_script::` (line 9).
+In `tests/http_auth_test.rs`, replace `tool_script::` with `tool_script::` (line 9).
 
 **Step 9: Verify compilation and tests**
 
@@ -221,7 +221,7 @@ git commit -m "refactor: rename Rust types and crate imports to ToolScript"
 
 Line 13 — change binary path:
 ```python
-CODE_MCP_BINARY = PROJECT_ROOT / "target" / "release" / "code-mcp"
+TOOL_SCRIPT_BINARY = PROJECT_ROOT / "target" / "release" / "toolscript"
 ```
 to:
 ```python
@@ -230,7 +230,7 @@ TOOLSCRIPT_BINARY = PROJECT_ROOT / "target" / "release" / "toolscript"
 
 Line 36 — rename fixture:
 ```python
-def code_mcp_binary() -> Path:
+def tool_script_binary() -> Path:
 ```
 to:
 ```python
@@ -239,9 +239,9 @@ def toolscript_binary() -> Path:
 
 Line 38 — update env var check:
 ```python
-if os.environ.get("CODE_MCP_URL"):
-    return CODE_MCP_BINARY
-if not CODE_MCP_BINARY.exists():
+if os.environ.get("TOOL_SCRIPT_URL"):
+    return TOOL_SCRIPT_BINARY
+if not TOOL_SCRIPT_BINARY.exists():
 ```
 to:
 ```python
@@ -252,7 +252,7 @@ if not TOOLSCRIPT_BINARY.exists():
 
 Line 46 — update return:
 ```python
-return CODE_MCP_BINARY
+return TOOL_SCRIPT_BINARY
 ```
 to:
 ```python
@@ -261,16 +261,16 @@ return TOOLSCRIPT_BINARY
 
 **Step 2: Update e2e/tests/conftest.py**
 
-Replace all `code_mcp_binary` parameter/fixture references with `toolscript_binary`.
-Replace all `CODE_MCP_URL` with `TOOL_SCRIPT_URL`.
-Replace `"code-mcp-output"` on line 312 with `"toolscript-output"`.
-Update docstrings: `"code-mcp"` → `"toolscript"` throughout.
+Replace all `tool_script_binary` parameter/fixture references with `toolscript_binary`.
+Replace all `TOOL_SCRIPT_URL` with `TOOL_SCRIPT_URL`.
+Replace `"toolscript-output"` on line 312 with `"toolscript-output"`.
+Update docstrings: `"toolscript"` → `"toolscript"` throughout.
 
 **Step 3: Update e2e/pyproject.toml**
 
 Line 2:
 ```toml
-name = "code-mcp-e2e"
+name = "toolscript-e2e"
 ```
 to:
 ```toml
@@ -281,7 +281,7 @@ name = "toolscript-e2e"
 
 Line 14:
 ```python
-description="E2E test API for code-mcp",
+description="E2E test API for toolscript",
 ```
 to:
 ```python
@@ -290,7 +290,7 @@ description="E2E test API for toolscript",
 
 Line 50 comment:
 ```python
-# Inject the server URL so code-mcp knows the base URL for API calls.
+# Inject the server URL so toolscript knows the base URL for API calls.
 ```
 to:
 ```python
@@ -301,7 +301,7 @@ to:
 
 Line 137:
 ```
-name = "code-mcp-e2e"
+name = "toolscript-e2e"
 ```
 to:
 ```
@@ -326,7 +326,7 @@ git commit -m "refactor: rename E2E test references to toolscript"
 
 Line 77:
 ```yaml
-tags: code-mcp:ci
+tags: toolscript:ci
 ```
 to:
 ```yaml
@@ -335,18 +335,18 @@ tags: toolscript:ci
 
 **Step 2: Update container references**
 
-Line 96 comment: `"code-mcp"` → `"toolscript"`
-Line 98: `--name code-mcp-ci` → `--name toolscript-ci`
-Line 100: `code-mcp:ci \` → `toolscript:ci \`
-Line 104 comment: `code-mcp` → `toolscript`
-Line 106: remove/update `code-mcp` in the wait message → `toolscript`
-Line 109: `echo "code-mcp ready"` → `echo "toolscript ready"`
+Line 96 comment: `"toolscript"` → `"toolscript"`
+Line 98: `--name toolscript-ci` → `--name toolscript-ci`
+Line 100: `toolscript:ci \` → `toolscript:ci \`
+Line 104 comment: `toolscript` → `toolscript`
+Line 106: remove/update `toolscript` in the wait message → `toolscript`
+Line 109: `echo "toolscript ready"` → `echo "toolscript ready"`
 
 **Step 3: Update env var**
 
 Line 117:
 ```yaml
-CODE_MCP_URL: "http://127.0.0.1:9300"
+TOOL_SCRIPT_URL: "http://127.0.0.1:9300"
 ```
 to:
 ```yaml
@@ -357,7 +357,7 @@ TOOL_SCRIPT_URL: "http://127.0.0.1:9300"
 
 Line 120:
 ```yaml
-run: docker logs code-mcp-ci
+run: docker logs toolscript-ci
 ```
 to:
 ```yaml
@@ -382,7 +382,7 @@ git commit -m "refactor: rename CI workflow references to toolscript"
 
 Line 24:
 ```dockerfile
-COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/code-mcp /code-mcp
+COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/toolscript /toolscript
 ```
 to:
 ```dockerfile
@@ -391,7 +391,7 @@ COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/toolscript /
 
 Line 25:
 ```dockerfile
-ENTRYPOINT ["/code-mcp", "run"]
+ENTRYPOINT ["/toolscript", "run"]
 ```
 to:
 ```dockerfile
@@ -415,22 +415,22 @@ git commit -m "refactor: rename Docker binary to toolscript"
 **Step 1: Replace all name references**
 
 Apply these replacements throughout the entire file:
-- `# code-mcp` → `# toolscript` (line 1)
-- `code-mcp` → `toolscript` in all CLI examples, config file references, Docker commands, git clone URLs
-- `code-mcp.toml` → `toolscript.toml` in all config file references
-- `code-mcp run` → `toolscript run`
-- `code-mcp generate` → `toolscript generate`
-- `code-mcp serve` → `toolscript serve`
-- `code-mcp-output` → `toolscript-output` (if referenced)
-- `"command": "code-mcp"` → `"command": "toolscript"` in JSON config examples
-- `https://github.com/alenna/code-mcp.git` → `https://github.com/alenna/toolscript.git` (line 320)
-- `cd code-mcp` → `cd toolscript` (line 321)
+- `# toolscript` → `# toolscript` (line 1)
+- `toolscript` → `toolscript` in all CLI examples, config file references, Docker commands, git clone URLs
+- `toolscript.toml` → `toolscript.toml` in all config file references
+- `toolscript run` → `toolscript run`
+- `toolscript generate` → `toolscript generate`
+- `toolscript serve` → `toolscript serve`
+- `toolscript-output` → `toolscript-output` (if referenced)
+- `"command": "toolscript"` → `"command": "toolscript"` in JSON config examples
+- `https://github.com/alenna/toolscript.git` → `https://github.com/alenna/toolscript.git` (line 320)
+- `cd toolscript` → `cd toolscript` (line 321)
 
 **Step 2: Commit**
 
 ```bash
 git add README.md
-git commit -m "docs: rebrand README from code-mcp to toolscript"
+git commit -m "docs: rebrand README from toolscript to toolscript"
 ```
 
 ---
@@ -438,8 +438,8 @@ git commit -m "docs: rebrand README from code-mcp to toolscript"
 ### Task 7: Update vision.md and OPENAPI_GAPS.md
 
 **Files:**
-- Modify: `vision.md` — no direct `code-mcp` references (uses generic "tool" language), skip
-- Modify: `OPENAPI_GAPS.md` — no direct `code-mcp` references (uses "the project"), skip
+- Modify: `vision.md` — no direct `toolscript` references (uses generic "tool" language), skip
+- Modify: `OPENAPI_GAPS.md` — no direct `toolscript` references (uses "the project"), skip
 
 **Step 1: Verify no references**
 
@@ -459,7 +459,7 @@ No commit needed.
 
 **Step 1: Replace all references**
 
-Replace all `code-mcp` with `toolscript` in the file:
+Replace all `toolscript` with `toolscript` in the file:
 - Line 9: `"args": ["build", "--bin=toolscript", "--package=toolscript"]`
 - Line 11: `"name": "toolscript"`
 - Line 23: `"args": ["test", "--no-run", "--lib", "--package=toolscript"]`
@@ -477,30 +477,30 @@ git commit -m "refactor: rename VSCode debug configs to toolscript"
 ### Task 9: Update docs/plans content and rename files
 
 **Files:**
-- Modify content in all 24 files in `docs/plans/` — replace `code-mcp` → `toolscript`, `CodeMcp` → `ToolScript`, `code_mcp` → `tool_script`, `CODE_MCP` → `TOOL_SCRIPT`, `code-mcp-output` → `toolscript-output`
-- Rename: `docs/plans/2026-02-21-code-mcp-design.md` → `docs/plans/2026-02-21-toolscript-design.md`
-- Rename: `docs/plans/2026-02-21-code-mcp-implementation.md` → `docs/plans/2026-02-21-toolscript-implementation.md`
+- Modify content in all 24 files in `docs/plans/` — replace `toolscript` → `toolscript`, `ToolScript` → `ToolScript`, `tool_script` → `tool_script`, `TOOL_SCRIPT` → `TOOL_SCRIPT`, `toolscript-output` → `toolscript-output`
+- Rename: `docs/plans/2026-02-21-toolscript-design.md` → `docs/plans/2026-02-21-toolscript-design.md`
+- Rename: `docs/plans/2026-02-21-toolscript-implementation.md` → `docs/plans/2026-02-21-toolscript-implementation.md`
 
 **Step 1: Replace content in all docs/plans files**
 
 For each `.md` file in `docs/plans/`, do a global find-and-replace:
-- `code-mcp-output` → `toolscript-output`
-- `code-mcp-e2e` → `toolscript-e2e`
-- `code-mcp.toml` → `toolscript.toml`
-- `code-mcp` → `toolscript`
-- `CodeMcpServer` → `ToolScriptServer`
-- `CodeMcpConfig` → `ToolScriptConfig`
-- `CodeMcp` → `ToolScript`
-- `code_mcp` → `tool_script`
-- `CODE_MCP` → `TOOL_SCRIPT`
+- `toolscript-output` → `toolscript-output`
+- `toolscript-e2e` → `toolscript-e2e`
+- `toolscript.toml` → `toolscript.toml`
+- `toolscript` → `toolscript`
+- `ToolScriptServer` → `ToolScriptServer`
+- `ToolScriptConfig` → `ToolScriptConfig`
+- `ToolScript` → `ToolScript`
+- `tool_script` → `tool_script`
+- `TOOL_SCRIPT` → `TOOL_SCRIPT`
 
 Order matters: replace more specific patterns first to avoid double-replacing.
 
 **Step 2: Rename files**
 
 ```bash
-git mv docs/plans/2026-02-21-code-mcp-design.md docs/plans/2026-02-21-toolscript-design.md
-git mv docs/plans/2026-02-21-code-mcp-implementation.md docs/plans/2026-02-21-toolscript-implementation.md
+git mv docs/plans/2026-02-21-toolscript-design.md docs/plans/2026-02-21-toolscript-design.md
+git mv docs/plans/2026-02-21-toolscript-implementation.md docs/plans/2026-02-21-toolscript-implementation.md
 ```
 
 **Step 3: Commit**

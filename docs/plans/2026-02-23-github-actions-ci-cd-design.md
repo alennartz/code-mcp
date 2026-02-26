@@ -55,7 +55,7 @@ Steps:
 4. `pip install -e .` in `e2e/`
 5. Start test API server (Python/uvicorn) on host
 6. Run Docker container with `--network=host`, pointing at the test API's OpenAPI spec
-7. Run HTTP-only e2e tests (`pytest tests/test_http_transport.py tests/test_auth.py`) with `CODE_MCP_URL` env var pointing at the container's SSE endpoint
+7. Run HTTP-only e2e tests (`pytest tests/test_http_transport.py tests/test_auth.py`) with `TOOL_SCRIPT_URL` env var pointing at the container's SSE endpoint
 
 #### `deploy`
 
@@ -90,6 +90,6 @@ Reduces image from ~80MB to ~15-20MB.
 
 ## E2E Test Fixture Change
 
-Add `CODE_MCP_URL` env var support to the HTTP test fixtures. When set, HTTP/SSE tests connect to the provided URL instead of launching a binary process. This allows tests to target an externally-running Docker container.
+Add `TOOL_SCRIPT_URL` env var support to the HTTP test fixtures. When set, HTTP/SSE tests connect to the provided URL instead of launching a binary process. This allows tests to target an externally-running Docker container.
 
 Affected file: `e2e/tests/conftest.py` or `e2e/conftest.py` (wherever the HTTP fixtures are defined).

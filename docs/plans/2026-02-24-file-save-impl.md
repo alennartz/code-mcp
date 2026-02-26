@@ -58,7 +58,7 @@ spec = "petstore.yaml"
 **Step 2: Run test to verify it fails**
 
 Run: `cargo test test_load_config_with_output -- --nocapture`
-Expected: FAIL — `output` field does not exist on `CodeMcpConfig`
+Expected: FAIL — `output` field does not exist on `ToolScriptConfig`
 
 **Step 3: Write minimal implementation**
 
@@ -74,11 +74,11 @@ pub struct OutputConfig {
 }
 ```
 
-Add the field to `CodeMcpConfig`:
+Add the field to `ToolScriptConfig`:
 
 ```rust
 #[derive(Debug, Clone, Deserialize)]
-pub struct CodeMcpConfig {
+pub struct ToolScriptConfig {
     pub apis: HashMap<String, ConfigApiEntry>,
     #[serde(default)]
     pub frozen_params: Option<HashMap<String, String>>,
@@ -113,7 +113,7 @@ Add to `tests` module in `src/cli.rs`:
 ```rust
 #[test]
 fn test_run_with_output_dir() {
-    let cli = Cli::parse_from(["code-mcp", "run", "spec.yaml", "--output-dir", "/tmp/out"]);
+    let cli = Cli::parse_from(["toolscript", "run", "spec.yaml", "--output-dir", "/tmp/out"]);
     match cli.command {
         Command::Run { output_dir, .. } => {
             assert_eq!(output_dir.as_deref(), Some("/tmp/out"));
@@ -124,7 +124,7 @@ fn test_run_with_output_dir() {
 
 #[test]
 fn test_serve_with_output_dir() {
-    let cli = Cli::parse_from(["code-mcp", "serve", "./output", "--output-dir", "/tmp/out"]);
+    let cli = Cli::parse_from(["toolscript", "serve", "./output", "--output-dir", "/tmp/out"]);
     match cli.command {
         Command::Serve { output_dir, .. } => {
             assert_eq!(output_dir.as_deref(), Some("/tmp/out"));
@@ -590,7 +590,7 @@ Add to `tests` module in `src/server/mod.rs`:
 #[tokio::test(flavor = "multi_thread")]
 async fn test_execute_script_includes_files_written() {
     let output_dir = tempfile::tempdir().unwrap();
-    let server = CodeMcpServer::new(
+    let server = ToolScriptServer::new(
         test_manifest(),
         Arc::new(HttpHandler::mock(|_, _, _, _| Ok(serde_json::json!({})))),
         AuthCredentialsMap::new(),
@@ -620,11 +620,11 @@ async fn test_execute_script_includes_files_written() {
 **Step 2: Run test to verify it fails**
 
 Run: `cargo test test_execute_script_includes_files_written -- --nocapture`
-Expected: FAIL — `CodeMcpServer::new` signature mismatch
+Expected: FAIL — `ToolScriptServer::new` signature mismatch
 
 **Step 3: Write implementation**
 
-Update `CodeMcpServer::new()` in `src/server/mod.rs` to accept `output_config`:
+Update `ToolScriptServer::new()` in `src/server/mod.rs` to accept `output_config`:
 
 ```rust
 pub fn new(
@@ -660,7 +660,7 @@ let response = serde_json::json!({
 });
 ```
 
-Update all `CodeMcpServer::new()` call sites to pass `None`:
+Update all `ToolScriptServer::new()` call sites to pass `None`:
 - `src/server/mod.rs` test helper `test_server()`
 - `src/main.rs` — will be properly wired in Task 6
 
@@ -690,12 +690,12 @@ This task is wiring only — no new tests needed (covered by integration/e2e tes
 Add a helper function to `src/main.rs`:
 
 ```rust
-use code_mcp::runtime::executor::OutputConfig;
+use tool_script::runtime::executor::OutputConfig;
 
 /// Build the resolved output config from CLI flags, TOML config, and mode.
 fn resolve_output_config(
     cli_output_dir: Option<&str>,
-    config: Option<&CodeMcpConfig>,
+    config: Option<&ToolScriptConfig>,
     is_hosted: bool,
 ) -> Option<OutputConfig> {
     // If hosted mode and no explicit CLI override, disable
@@ -723,7 +723,7 @@ fn resolve_output_config(
                 .and_then(|o| o.dir.as_ref())
                 .map(PathBuf::from)
         })
-        .unwrap_or_else(|| PathBuf::from("./code-mcp-output"));
+        .unwrap_or_else(|| PathBuf::from("./toolscript-output"));
 
     let max_bytes = config
         .and_then(|c| c.output.as_ref())
@@ -762,7 +762,7 @@ struct ServeArgs {
 Update `serve()`:
 
 ```rust
-let server = CodeMcpServer::new(args.manifest, handler, args.auth, config, args.output_config);
+let server = ToolScriptServer::new(args.manifest, handler, args.auth, config, args.output_config);
 ```
 
 Update both `Serve` and `Run` command handlers in `main()` to resolve and pass output config:
@@ -842,7 +842,7 @@ async fn test_file_save_roundtrip() {
         manifest,
         Arc::new(handler),
         ExecutorConfig::default(),
-        Some(code_mcp::runtime::executor::OutputConfig {
+        Some(tool_script::runtime::executor::OutputConfig {
             dir: output_dir.path().to_path_buf(),
             max_bytes: 50 * 1024 * 1024,
         }),
@@ -904,19 +904,19 @@ git commit -m "test: add file.save() integration roundtrip test"
 
 **Step 1: Update conftest to add a session with output enabled**
 
-Add to `e2e/tests/conftest.py` — a new fixture that launches code-mcp with `--output-dir`:
+Add to `e2e/tests/conftest.py` — a new fixture that launches toolscript with `--output-dir`:
 
 ```python
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
-async def mcp_output_session(code_mcp_binary: Path, openapi_spec_url: str, tmp_path_factory):
-    """code-mcp instance with file.save() output enabled."""
-    output_dir = tmp_path_factory.mktemp("code-mcp-output")
+async def mcp_output_session(tool_script_binary: Path, openapi_spec_url: str, tmp_path_factory):
+    """toolscript instance with file.save() output enabled."""
+    output_dir = tmp_path_factory.mktemp("toolscript-output")
     env = {
         "PATH": "/usr/bin:/bin",
         "TEST_API_BEARER_TOKEN": "test-secret-123",
     }
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(tool_script_binary),
         args=[
             "run", openapi_spec_url,
             "--auth", "TEST_API_BEARER_TOKEN",

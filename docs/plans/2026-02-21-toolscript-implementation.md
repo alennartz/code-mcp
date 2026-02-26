@@ -1,4 +1,4 @@
-# code-mcp Implementation Plan
+# toolscript Implementation Plan
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
@@ -8,14 +8,14 @@
 
 **Tech Stack:** Rust, mlua (Lua 5.4), rmcp (MCP server), openapiv3 (OpenAPI parsing), reqwest (HTTP), tokio (async), clap (CLI), serde (serialization).
 
-**Design doc:** `docs/plans/2026-02-21-code-mcp-design.md`
+**Design doc:** `docs/plans/2026-02-21-toolscript-design.md`
 
 ---
 
 ## Project Structure
 
 ```
-code-mcp/
+toolscript/
 ├── Cargo.toml
 ├── src/
 │   ├── main.rs
@@ -52,7 +52,7 @@ code-mcp/
 
 ```toml
 [package]
-name = "code-mcp"
+name = "toolscript"
 version = "0.1.0"
 edition = "2021"
 
@@ -82,7 +82,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "code-mcp", about = "Generate MCP servers from OpenAPI specs")]
+#[command(name = "toolscript", about = "Generate MCP servers from OpenAPI specs")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -156,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
 **Step 3: Verify it compiles and runs**
 
 ```bash
-cd /home/alenna/repos/code-mcp && cargo build
+cd /home/alenna/repos/toolscript && cargo build
 cargo run -- --help
 cargo run -- generate --help
 cargo run -- serve --help
@@ -859,7 +859,7 @@ use std::path::Path;
 #[test]
 fn test_generate_from_petstore() {
     let output_dir = tempfile::tempdir().unwrap();
-    code_mcp::codegen::generate(
+    tool_script::codegen::generate(
         &["testdata/petstore.yaml".to_string()],
         output_dir.path(),
     ).unwrap();
@@ -867,7 +867,7 @@ fn test_generate_from_petstore() {
     // manifest.json exists and is valid
     let manifest_path = output_dir.path().join("manifest.json");
     assert!(manifest_path.exists());
-    let manifest: code_mcp::codegen::manifest::Manifest =
+    let manifest: tool_script::codegen::manifest::Manifest =
         serde_json::from_str(&std::fs::read_to_string(&manifest_path).unwrap()).unwrap();
     assert!(!manifest.functions.is_empty());
 
@@ -964,9 +964,9 @@ cargo test --test codegen_integration
 **Step 5: Also test via CLI**
 
 ```bash
-cargo run -- generate testdata/petstore.yaml -o /tmp/code-mcp-test
-cat /tmp/code-mcp-test/manifest.json
-cat /tmp/code-mcp-test/sdk/*.lua
+cargo run -- generate testdata/petstore.yaml -o /tmp/toolscript-test
+cat /tmp/toolscript-test/manifest.json
+cat /tmp/toolscript-test/sdk/*.lua
 ```
 
 Verify the output looks correct — manifest has functions and schemas, Lua files have proper annotations.
@@ -1811,7 +1811,7 @@ use crate::runtime::executor::ScriptExecutor;
 use rmcp::{tool, tool_router, handler::server::tool::ToolRouter, model::*};
 
 #[derive(Clone)]
-pub struct CodeMcpServer {
+pub struct ToolScriptServer {
     manifest: Manifest,
     annotation_cache: HashMap<String, String>,  // function_name -> annotation text
     schema_cache: HashMap<String, String>,       // schema_name -> annotation text
@@ -1820,7 +1820,7 @@ pub struct CodeMcpServer {
 }
 
 #[tool_router]
-impl CodeMcpServer {
+impl ToolScriptServer {
     pub fn new(manifest: Manifest, executor: ScriptExecutor) -> Self {
         let annotation_cache = build_annotation_cache(&manifest);
         let schema_cache = build_schema_cache(&manifest);
@@ -1957,7 +1957,7 @@ cargo test server::resources
 
 **Step 3: Implement resource serving**
 
-Implement `ServerHandler` trait for `CodeMcpServer` to handle resource listing and reading. The resources serve the same annotation content as the doc tools, just via a different MCP interface.
+Implement `ServerHandler` trait for `ToolScriptServer` to handle resource listing and reading. The resources serve the same annotation content as the doc tools, just via a different MCP interface.
 
 Follow the rmcp resource serving API. The exact trait methods will depend on rmcp's version — check the crate docs.
 
@@ -1999,7 +1999,7 @@ Command::Serve { dir, transport, port } => {
     let executor = ScriptExecutor::new(manifest.clone(), handler, ExecutorConfig::default())?;
 
     // 3. Create MCP server
-    let server = CodeMcpServer::new(manifest, executor);
+    let server = ToolScriptServer::new(manifest, executor);
 
     // 4. Start with selected transport
     match transport.as_str() {
@@ -2034,10 +2034,10 @@ Command::Run { specs, transport, port } => {
 
 ```bash
 # Generate first
-cargo run -- generate testdata/petstore.yaml -o /tmp/code-mcp-test
+cargo run -- generate testdata/petstore.yaml -o /tmp/toolscript-test
 
 # Serve (will read from stdin, write to stdout — use for MCP protocol testing)
-echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | cargo run -- serve /tmp/code-mcp-test
+echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | cargo run -- serve /tmp/toolscript-test
 
 # Or run directly
 echo '{"jsonrpc":"2.0","method":"initialize","id":1,"params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' | cargo run -- run testdata/petstore.yaml
@@ -2085,7 +2085,7 @@ Consult rmcp docs for the SSE server setup. It typically involves starting an HT
 **Step 2: Test SSE transport**
 
 ```bash
-cargo run -- serve /tmp/code-mcp-test --transport sse --port 8080 &
+cargo run -- serve /tmp/toolscript-test --transport sse --port 8080 &
 # In another terminal, test the SSE endpoint
 curl http://localhost:8080/sse
 ```
@@ -2165,15 +2165,15 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /build/target/release/code-mcp /usr/local/bin/code-mcp
-ENTRYPOINT ["code-mcp", "run"]
+COPY --from=builder /build/target/release/toolscript /usr/local/bin/toolscript
+ENTRYPOINT ["toolscript", "run"]
 ```
 
 **Step 2: Build and test**
 
 ```bash
-docker build -t code-mcp .
-docker run code-mcp --help
+docker build -t toolscript .
+docker run toolscript --help
 ```
 
 Expected: Help text from the CLI.
@@ -2182,7 +2182,7 @@ Expected: Help text from the CLI.
 
 ```bash
 # Test with a local spec
-docker run -v $(pwd)/testdata:/specs code-mcp /specs/petstore.yaml --transport sse --port 8080
+docker run -v $(pwd)/testdata:/specs toolscript /specs/petstore.yaml --transport sse --port 8080
 ```
 
 **Step 4: Commit**
@@ -2209,7 +2209,7 @@ This is the final validation: start from an OpenAPI spec, generate, serve, and v
 async fn test_full_roundtrip_with_mock_api() {
     // 1. Generate from petstore spec
     let output_dir = tempfile::tempdir().unwrap();
-    code_mcp::codegen::generate::generate(
+    tool_script::codegen::generate::generate(
         &["testdata/petstore.yaml".to_string()],
         output_dir.path(),
     ).unwrap();

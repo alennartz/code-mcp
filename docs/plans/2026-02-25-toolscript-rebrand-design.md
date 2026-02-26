@@ -2,18 +2,18 @@
 
 ## Summary
 
-Rebrand the repository from `code-mcp` to `ToolScript` across all code, config, docs, CI, Docker, and GitHub.
+Rebrand the repository from `toolscript` to `ToolScript` across all code, config, docs, CI, Docker, and GitHub.
 
 ## Name Mapping
 
 | Current | New | Where used |
 |---------|-----|-----------|
-| `code-mcp` | `toolscript` | Binary, CLI name, package name, config file, Docker tags, docs |
-| `CodeMcp` | `ToolScript` | Rust structs (`ToolScriptServer`, `ToolScriptConfig`) |
-| `code_mcp` | `tool_script` | Rust crate name, module imports, test imports |
-| `CODE_MCP` | `TOOL_SCRIPT` | Environment variables (`TOOL_SCRIPT_URL`) |
-| `code-mcp.toml` | `toolscript.toml` | Config file name |
-| `code-mcp-e2e` | `toolscript-e2e` | Python E2E test package |
+| `toolscript` | `toolscript` | Binary, CLI name, package name, config file, Docker tags, docs |
+| `ToolScript` | `ToolScript` | Rust structs (`ToolScriptServer`, `ToolScriptConfig`) |
+| `tool_script` | `tool_script` | Rust crate name, module imports, test imports |
+| `TOOL_SCRIPT` | `TOOL_SCRIPT` | Environment variables (`TOOL_SCRIPT_URL`) |
+| `toolscript.toml` | `toolscript.toml` | Config file name |
+| `toolscript-e2e` | `toolscript-e2e` | Python E2E test package |
 
 ## Tagline
 
@@ -23,18 +23,18 @@ Unchanged: "Turn OpenAPI specs into scriptable MCP servers. One round-trip inste
 
 ### Stage 1 - Core Rust code (verify: `cargo build`)
 
-- `Cargo.toml`: package name `code-mcp` → `toolscript`
+- `Cargo.toml`: package name `toolscript` → `toolscript`
 - `src/cli.rs`: CLI command name
-- `src/config.rs`: `CodeMcpConfig` → `ToolScriptConfig`, config filename `code-mcp.toml` → `toolscript.toml`
-- `src/server/mod.rs`: `CodeMcpServer` → `ToolScriptServer`
-- `src/main.rs`: all `use code_mcp::` → `use tool_script::`, struct references
+- `src/config.rs`: `ToolScriptConfig` → `ToolScriptConfig`, config filename `toolscript.toml` → `toolscript.toml`
+- `src/server/mod.rs`: `ToolScriptServer` → `ToolScriptServer`
+- `src/main.rs`: all `use tool_script::` → `use tool_script::`, struct references
 - All other `src/` files: crate imports
-- `tests/*.rs`: all `use code_mcp::` → `use tool_script::`
+- `tests/*.rs`: all `use tool_script::` → `use tool_script::`
 
 ### Stage 2 - E2E & CI (verify: e2e tests pass)
 
 - `e2e/conftest.py`: binary name, fixture names
-- `e2e/tests/conftest.py`: binary references, `CODE_MCP_URL` → `TOOL_SCRIPT_URL`
+- `e2e/tests/conftest.py`: binary references, `TOOL_SCRIPT_URL` → `TOOL_SCRIPT_URL`
 - `e2e/pyproject.toml`: package name
 - `e2e/uv.lock`: package name
 - `.github/workflows/ci.yml`: Docker tags, env vars, container names
@@ -50,7 +50,7 @@ Unchanged: "Turn OpenAPI specs into scriptable MCP servers. One round-trip inste
 
 ### Stage 4 - File renames
 
-- Rename `docs/plans/` files that contain `code-mcp` in the filename
+- Rename `docs/plans/` files that contain `toolscript` in the filename
 
 ### Stage 5 - GitHub repo rename
 

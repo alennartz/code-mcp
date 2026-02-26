@@ -307,9 +307,9 @@ git commit -m "fix: resolve all clippy lint violations for strict config"
       "request": "launch",
       "name": "Debug binary",
       "cargo": {
-        "args": ["build", "--bin=code-mcp", "--package=code-mcp"],
+        "args": ["build", "--bin=toolscript", "--package=toolscript"],
         "filter": {
-          "name": "code-mcp",
+          "name": "toolscript",
           "kind": "bin"
         }
       },
@@ -321,7 +321,7 @@ git commit -m "fix: resolve all clippy lint violations for strict config"
       "request": "launch",
       "name": "Debug unit tests",
       "cargo": {
-        "args": ["test", "--no-run", "--lib", "--package=code-mcp"],
+        "args": ["test", "--no-run", "--lib", "--package=toolscript"],
         "filter": {
           "kind": "lib"
         }
@@ -334,7 +334,7 @@ git commit -m "fix: resolve all clippy lint violations for strict config"
       "request": "launch",
       "name": "Debug integration tests",
       "cargo": {
-        "args": ["test", "--no-run", "--test=*", "--package=code-mcp"],
+        "args": ["test", "--no-run", "--test=*", "--package=toolscript"],
         "filter": {
           "kind": "test"
         }

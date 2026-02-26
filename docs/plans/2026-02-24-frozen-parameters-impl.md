@@ -4,7 +4,7 @@
 
 **Goal:** Add frozen parameters (server-side fixed values hidden from the LLM) and switch the Luau SDK calling convention from positional args to named table-based args.
 
-**Architecture:** Frozen params are configured in `code-mcp.toml` at global and per-API levels. During codegen, matching params get a `frozen_value` set on `ParamDef`. Annotations and registry skip/inject them accordingly. The calling convention changes from `sdk.func(arg1, arg2)` to `sdk.func({ key = val })` with body as an optional second argument.
+**Architecture:** Frozen params are configured in `toolscript.toml` at global and per-API levels. During codegen, matching params get a `frozen_value` set on `ParamDef`. Annotations and registry skip/inject them accordingly. The calling convention changes from `sdk.func(arg1, arg2)` to `sdk.func({ key = val })` with body as an optional second argument.
 
 **Tech Stack:** Rust, serde, mlua (Luau), openapiv3
 
@@ -163,7 +163,7 @@ pub struct ConfigApiEntry {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CodeMcpConfig {
+pub struct ToolScriptConfig {
     pub apis: HashMap<String, ConfigApiEntry>,
     #[serde(default)]
     pub frozen_params: Option<HashMap<String, String>>,
@@ -1010,7 +1010,7 @@ generate(&spec_inputs, tmpdir.path(), &global_frozen, &per_api_frozen).await?;
 Add a helper function:
 ```rust
 fn extract_frozen_params(
-    config: Option<&CodeMcpConfig>,
+    config: Option<&ToolScriptConfig>,
 ) -> (HashMap<String, String>, HashMap<String, HashMap<String, String>>) {
     let Some(config) = config else {
         return (HashMap::new(), HashMap::new());
@@ -1068,7 +1068,7 @@ fn test_frozen_params_hidden_from_docs() {
             }
         }
     }
-    let server = CodeMcpServer::new(
+    let server = ToolScriptServer::new(
         manifest,
         Arc::new(HttpHandler::mock(|_, _, _, _| Ok(serde_json::json!({})))),
         AuthCredentialsMap::new(),
@@ -1132,7 +1132,7 @@ async fn test_frozen_params_end_to_end() {
     petstore_frozen.insert("limit".to_string(), "25".to_string());
     per_api_frozen.insert("petstore".to_string(), petstore_frozen);
 
-    code_mcp::codegen::generate::generate(
+    tool_script::codegen::generate::generate(
         &[SpecInput {
             name: Some("petstore".to_string()),
             source: "testdata/petstore.yaml".to_string(),
@@ -1145,7 +1145,7 @@ async fn test_frozen_params_end_to_end() {
     .unwrap();
 
     // Check manifest has frozen_value set
-    let manifest: code_mcp::codegen::manifest::Manifest = serde_json::from_str(
+    let manifest: tool_script::codegen::manifest::Manifest = serde_json::from_str(
         &std::fs::read_to_string(output_dir.path().join("manifest.json")).unwrap(),
     )
     .unwrap();
