@@ -13,7 +13,7 @@ use rmcp::model::{
 };
 use rmcp::service::{RequestContext, RoleServer};
 
-use crate::codegen::annotations::{render_function_annotation, render_schema_annotation};
+use crate::codegen::annotations::{render_function_docs, render_schema_annotation};
 use crate::codegen::manifest::Manifest;
 use crate::runtime::executor::{ExecutorConfig, OutputConfig, ScriptExecutor};
 use crate::runtime::http::{AuthCredentialsMap, HttpHandler};
@@ -46,7 +46,7 @@ impl ToolScriptServer {
         let annotation_cache: HashMap<String, String> = manifest
             .functions
             .iter()
-            .map(|f| (f.name.clone(), render_function_annotation(f)))
+            .map(|f| (f.name.clone(), render_function_docs(f, &manifest.schemas)))
             .collect();
 
         let schema_cache: HashMap<String, String> = manifest
@@ -457,6 +457,25 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn test_get_function_docs_includes_referenced_schemas() {
+        let server = test_server();
+        let docs = tools::get_function_docs_impl(&server, "create_pet").unwrap();
+        // create_pet has request_body: NewPet and response: Pet
+        assert!(
+            docs.contains("function sdk.create_pet"),
+            "Missing function sig. Got:\n{docs}"
+        );
+        assert!(
+            docs.contains("export type NewPet"),
+            "Missing NewPet schema. Got:\n{docs}"
+        );
+        assert!(
+            docs.contains("export type Pet"),
+            "Missing Pet schema. Got:\n{docs}"
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

@@ -125,6 +125,66 @@ pub fn render_function_annotation(func: &FunctionDef) -> String {
     lines.join("\n")
 }
 
+/// Render a complete documentation block: function signature + all transitively referenced schemas.
+pub fn render_function_docs(func: &FunctionDef, schemas: &[SchemaDef]) -> String {
+    let mut output = render_function_annotation(func);
+
+    // Collect directly referenced schema names from response and request body
+    let mut needed: Vec<String> = Vec::new();
+    if let Some(ref schema) = func.response_schema {
+        needed.push(schema.clone());
+    }
+    if let Some(ref body) = func.request_body {
+        needed.push(body.schema.clone());
+    }
+
+    // Build schema lookup
+    let schema_map: std::collections::HashMap<&str, &SchemaDef> =
+        schemas.iter().map(|s| (s.name.as_str(), s)).collect();
+
+    // Transitively collect all referenced schemas
+    let mut resolved: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut queue = needed;
+    while let Some(name) = queue.pop() {
+        if !resolved.insert(name.clone()) {
+            continue;
+        }
+        if let Some(schema) = schema_map.get(name.as_str()) {
+            for field in &schema.fields {
+                collect_type_refs(&field.field_type, &mut queue);
+            }
+        }
+    }
+
+    // Render referenced schemas in stable sorted order
+    let mut sorted: Vec<&str> = resolved.iter().map(String::as_str).collect();
+    sorted.sort_unstable();
+    for name in sorted {
+        if let Some(schema) = schema_map.get(name) {
+            output.push('\n');
+            output.push('\n');
+            output.push_str(&render_schema_annotation(schema));
+        }
+    }
+
+    output
+}
+
+/// Collect named type references from a `FieldType` (for transitive schema resolution).
+fn collect_type_refs(field_type: &FieldType, refs: &mut Vec<String>) {
+    match field_type {
+        FieldType::Object { schema } => refs.push(schema.clone()),
+        FieldType::Array { items } => collect_type_refs(items, refs),
+        FieldType::InlineObject { fields } => {
+            for f in fields {
+                collect_type_refs(&f.field_type, refs);
+            }
+        }
+        FieldType::Map { value } => collect_type_refs(value, refs),
+        _ => {}
+    }
+}
+
 /// Render a Luau `export type` definition for a schema.
 ///
 /// Produces output like:
