@@ -300,7 +300,20 @@ fn field_type_to_luau(field_type: &FieldType) -> String {
         FieldType::Boolean => "boolean".to_string(),
         FieldType::Array { items } => format!("{{{}}}", field_type_to_luau(items)),
         FieldType::Object { schema } => schema.clone(),
-        FieldType::InlineObject { .. } => "{ [string]: any }".to_string(),
+        FieldType::InlineObject { fields } => {
+            let entries: Vec<String> = fields
+                .iter()
+                .map(|f| {
+                    let type_str = f.enum_values.as_ref().map_or_else(
+                        || field_type_to_luau(&f.field_type),
+                        |ev| render_enum_type(ev),
+                    );
+                    let optional = if !f.required || f.nullable { "?" } else { "" };
+                    format!("{}: {type_str}{optional}", f.name)
+                })
+                .collect();
+            format!("{{ {} }}", entries.join(", "))
+        }
         FieldType::Map { value } => format!("{{ [string]: {} }}", field_type_to_luau(value)),
     }
 }
@@ -1005,6 +1018,93 @@ mod tests {
         assert!(
             !output.contains("api_version"),
             "Frozen param should not appear. Got:\n{output}"
+        );
+    }
+
+    #[test]
+    fn test_render_inline_object_field() {
+        let schema = SchemaDef {
+            name: "Config".to_string(),
+            description: None,
+            fields: vec![FieldDef {
+                name: "options".to_string(),
+                field_type: FieldType::InlineObject {
+                    fields: vec![
+                        FieldDef {
+                            name: "timeout".to_string(),
+                            field_type: FieldType::Integer,
+                            required: true,
+                            description: Some("Timeout in ms".to_string()),
+                            enum_values: None,
+                            nullable: false,
+                            format: None,
+                        },
+                        FieldDef {
+                            name: "retries".to_string(),
+                            field_type: FieldType::Number,
+                            required: false,
+                            description: None,
+                            enum_values: None,
+                            nullable: false,
+                            format: None,
+                        },
+                    ],
+                },
+                required: true,
+                description: None,
+                enum_values: None,
+                nullable: false,
+                format: None,
+            }],
+        };
+
+        let output = render_schema_annotation(&schema);
+        assert!(
+            output.contains("options: { timeout: number, retries: number? },"),
+            "Inline object should render nested fields. Got:\n{output}"
+        );
+    }
+
+    #[test]
+    fn test_render_deeply_nested_inline_object() {
+        let schema = SchemaDef {
+            name: "Root".to_string(),
+            description: None,
+            fields: vec![FieldDef {
+                name: "outer".to_string(),
+                field_type: FieldType::InlineObject {
+                    fields: vec![FieldDef {
+                        name: "inner".to_string(),
+                        field_type: FieldType::InlineObject {
+                            fields: vec![FieldDef {
+                                name: "value".to_string(),
+                                field_type: FieldType::String,
+                                required: true,
+                                description: None,
+                                enum_values: None,
+                                nullable: false,
+                                format: None,
+                            }],
+                        },
+                        required: true,
+                        description: None,
+                        enum_values: None,
+                        nullable: false,
+                        format: None,
+                    }],
+                },
+                required: true,
+                description: None,
+                enum_values: None,
+                nullable: false,
+                format: None,
+            }],
+        };
+
+        let output = render_schema_annotation(&schema);
+        assert!(
+            output.contains("outer: { inner: { value: string } },"),
+            "Deeply nested inline objects should render correctly. Got:\n{output}"
         );
     }
 
