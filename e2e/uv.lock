@@ -134,7 +134,7 @@ wheels = [
 ]
 
 [[package]]
-name = "code-mcp-e2e"
+name = "toolscript-e2e"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

@@ -114,14 +114,14 @@ def sign_jwt(jwt_keys):
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
-async def mcp_http_session(code_mcp_binary, openapi_spec_url, jwks_server, sign_jwt):
-    """Spawn code-mcp with HTTP transport + JWT auth, connect an MCP client.
+async def mcp_http_session(toolscript_binary, openapi_spec_url, jwks_server, sign_jwt):
+    """Spawn toolscript with HTTP transport + JWT auth, connect an MCP client.
 
-    If CODE_MCP_URL is set, connect to the external server instead.
+    If TOOL_SCRIPT_URL is set, connect to the external server instead.
     """
     from mcp.client.streamable_http import streamable_http_client
 
-    external_url = os.environ.get("CODE_MCP_URL")
+    external_url = os.environ.get("TOOL_SCRIPT_URL")
     if external_url:
         base_url = external_url
         proc = None
@@ -133,7 +133,7 @@ async def mcp_http_session(code_mcp_binary, openapi_spec_url, jwks_server, sign_
         }
         proc = subprocess.Popen(
             [
-                str(code_mcp_binary), "run", openapi_spec_url,
+                str(toolscript_binary), "run", openapi_spec_url,
                 "--auth", "TEST_API_BEARER_TOKEN",
                 "--transport", "http", "--port", str(port),
                 "--auth-authority", "test-issuer",
@@ -185,12 +185,12 @@ async def mcp_http_session(code_mcp_binary, openapi_spec_url, jwks_server, sign_
 
 
 @pytest.fixture(scope="session")
-def mcp_http_url(code_mcp_binary, openapi_spec_url, jwks_server):
-    """Spawn code-mcp with HTTP transport + JWT auth, yield the base URL.
+def mcp_http_url(toolscript_binary, openapi_spec_url, jwks_server):
+    """Spawn toolscript with HTTP transport + JWT auth, yield the base URL.
 
-    If CODE_MCP_URL is set, skip spawning and use the external server.
+    If TOOL_SCRIPT_URL is set, skip spawning and use the external server.
     """
-    external_url = os.environ.get("CODE_MCP_URL")
+    external_url = os.environ.get("TOOL_SCRIPT_URL")
     if external_url:
         yield external_url
         return
@@ -202,7 +202,7 @@ def mcp_http_url(code_mcp_binary, openapi_spec_url, jwks_server):
     }
     proc = subprocess.Popen(
         [
-            str(code_mcp_binary), "run", openapi_spec_url,
+            str(toolscript_binary), "run", openapi_spec_url,
             "--auth", "TEST_API_BEARER_TOKEN",
             "--transport", "http", "--port", str(port),
             "--auth-authority", "test-issuer",
@@ -221,8 +221,8 @@ def mcp_http_url(code_mcp_binary, openapi_spec_url, jwks_server):
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
-async def mcp_stdio_session(code_mcp_binary: Path, openapi_spec_url: str):
-    """Spawn code-mcp and connect an MCP client over stdio.
+async def mcp_stdio_session(toolscript_binary: Path, openapi_spec_url: str):
+    """Spawn toolscript and connect an MCP client over stdio.
 
     Uses a background task to manage the stdio_client + ClientSession
     context managers so that setup and teardown both run in the same
@@ -234,7 +234,7 @@ async def mcp_stdio_session(code_mcp_binary: Path, openapi_spec_url: str):
         "TEST_API_API_KEY": "test-key-456",
     }
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(toolscript_binary),
         args=["run", openapi_spec_url, "--auth", "TEST_API_BEARER_TOKEN"],
         env=env,
     )
@@ -270,11 +270,11 @@ async def mcp_stdio_session(code_mcp_binary: Path, openapi_spec_url: str):
 
 
 @pytest_asyncio.fixture(loop_scope="session")
-async def mcp_no_auth_session(code_mcp_binary: Path, openapi_spec_url: str):
-    """code-mcp instance with NO upstream API credentials."""
+async def mcp_no_auth_session(toolscript_binary: Path, openapi_spec_url: str):
+    """toolscript instance with NO upstream API credentials."""
     env = {"PATH": "/usr/bin:/bin"}
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(toolscript_binary),
         args=["run", openapi_spec_url],
         env=env,
     )
@@ -307,15 +307,15 @@ async def mcp_no_auth_session(code_mcp_binary: Path, openapi_spec_url: str):
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
-async def mcp_output_session(code_mcp_binary: Path, openapi_spec_url: str, tmp_path_factory):
-    """code-mcp instance with file.save() output enabled."""
-    output_dir = tmp_path_factory.mktemp("code-mcp-output")
+async def mcp_output_session(toolscript_binary: Path, openapi_spec_url: str, tmp_path_factory):
+    """toolscript instance with file.save() output enabled."""
+    output_dir = tmp_path_factory.mktemp("toolscript-output")
     env = {
         "PATH": "/usr/bin:/bin",
         "TEST_API_BEARER_TOKEN": "test-secret-123",
     }
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(toolscript_binary),
         args=[
             "run", openapi_spec_url,
             "--auth", "TEST_API_BEARER_TOKEN",
@@ -352,14 +352,14 @@ async def mcp_output_session(code_mcp_binary: Path, openapi_spec_url: str, tmp_p
 
 
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
-async def mcp_limited_session(code_mcp_binary: Path, openapi_spec_url: str):
-    """code-mcp instance with short execution limits."""
+async def mcp_limited_session(toolscript_binary: Path, openapi_spec_url: str):
+    """toolscript instance with short execution limits."""
     env = {
         "PATH": "/usr/bin:/bin",
         "TEST_API_BEARER_TOKEN": "test-secret-123",
     }
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(toolscript_binary),
         args=[
             "run", openapi_spec_url,
             "--auth", "TEST_API_BEARER_TOKEN",

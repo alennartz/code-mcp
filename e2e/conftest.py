@@ -10,7 +10,7 @@ import pytest
 import uvicorn
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CODE_MCP_BINARY = PROJECT_ROOT / "target" / "release" / "code-mcp"
+TOOLSCRIPT_BINARY = PROJECT_ROOT / "target" / "release" / "toolscript"
 
 
 def _free_port() -> int:
@@ -33,17 +33,17 @@ def _wait_for_http(url: str, timeout: float = 10.0) -> None:
 
 
 @pytest.fixture(scope="session")
-def code_mcp_binary() -> Path:
+def toolscript_binary() -> Path:
     # When an external server is provided, the binary is not needed.
-    if os.environ.get("CODE_MCP_URL"):
-        return CODE_MCP_BINARY
-    if not CODE_MCP_BINARY.exists():
+    if os.environ.get("TOOL_SCRIPT_URL"):
+        return TOOLSCRIPT_BINARY
+    if not TOOLSCRIPT_BINARY.exists():
         subprocess.run(
             ["cargo", "build", "--release"],
             cwd=PROJECT_ROOT,
             check=True,
         )
-    return CODE_MCP_BINARY
+    return TOOLSCRIPT_BINARY
 
 
 @pytest.fixture(scope="session")
