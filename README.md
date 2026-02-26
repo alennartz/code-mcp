@@ -1,4 +1,4 @@
-# code-mcp
+# toolscript
 
 Turn OpenAPI specs into scriptable MCP servers. One round-trip instead of many.
 
@@ -8,7 +8,7 @@ AI agents using MCP tools over complex APIs waste resources. Each API call becom
 
 ## The Solution
 
-code-mcp gives the LLM a [Luau](https://luau-lang.org/) scripting runtime with an auto-generated, strongly-typed SDK derived from OpenAPI specs. The LLM writes a script that chains multiple API calls, sends it for execution, and gets back the result. One round-trip instead of many.
+toolscript gives the LLM a [Luau](https://luau-lang.org/) scripting runtime with an auto-generated, strongly-typed SDK derived from OpenAPI specs. The LLM writes a script that chains multiple API calls, sends it for execution, and gets back the result. One round-trip instead of many.
 
 ## Quick Start
 
@@ -20,11 +20,11 @@ Point at an OpenAPI spec and provide your API key:
 
 ```bash
 export MY_TOKEN=your-token-here
-code-mcp run petstore=https://petstore3.swagger.io/api/v3/openapi.json \
+toolscript run petstore=https://petstore3.swagger.io/api/v3/openapi.json \
   --auth petstore:MY_TOKEN
 ```
 
-Or use a config file (`code-mcp.toml`):
+Or use a config file (`toolscript.toml`):
 
 ```toml
 [apis.petstore]
@@ -33,7 +33,7 @@ auth = "your-token-here"
 ```
 
 ```bash
-code-mcp run
+toolscript run
 ```
 
 Add the server to your MCP client config:
@@ -42,7 +42,7 @@ Add the server to your MCP client config:
 {
   "mcpServers": {
     "petstore": {
-      "command": "code-mcp",
+      "command": "toolscript",
       "args": ["run", "petstore=https://petstore3.swagger.io/api/v3/openapi.json", "--auth", "petstore:PETSTORE_TOKEN"],
       "env": {
         "PETSTORE_TOKEN": "your-token-here"
@@ -74,12 +74,12 @@ The response includes the return value as JSON, any `print()` output captured as
 
 ## CLI Reference
 
-### `code-mcp run`
+### `toolscript run`
 
 Generate and serve in one step. This is the most common subcommand.
 
 ```
-code-mcp run <SPECS>... [OPTIONS]
+toolscript run <SPECS>... [OPTIONS]
 ```
 
 | Flag               | Default | Description                                    |
@@ -95,24 +95,24 @@ code-mcp run <SPECS>... [OPTIONS]
 | `--auth-audience`  | --      | Expected JWT audience                          |
 | `--auth-jwks-uri`  | --      | Explicit JWKS URI override                     |
 
-If no specs and no `--config` are provided, `code-mcp run` looks for `code-mcp.toml` in the current directory.
+If no specs and no `--config` are provided, `toolscript run` looks for `toolscript.toml` in the current directory.
 
-### `code-mcp generate`
+### `toolscript generate`
 
 Code generation only. Produces a manifest and SDK annotations without starting a server.
 
 ```
-code-mcp generate <SPECS>... [-o <DIR>] [--config <FILE>]
+toolscript generate <SPECS>... [-o <DIR>] [--config <FILE>]
 ```
 
 Output directory defaults to `./output`. Generates `manifest.json` and `sdk/*.luau`. Use `--config` to load specs from a TOML config file instead of positional arguments.
 
-### `code-mcp serve`
+### `toolscript serve`
 
 Start an MCP server from a pre-generated output directory.
 
 ```
-code-mcp serve <DIR> [OPTIONS]
+toolscript serve <DIR> [OPTIONS]
 ```
 
 Accepts the same options as `run` (`--auth`, `--transport`, `--port`, `--timeout`, `--memory-limit`, `--max-api-calls`, `--auth-authority`, `--auth-audience`, `--auth-jwks-uri`).
@@ -123,21 +123,21 @@ There are two separate authentication layers.
 
 ### Upstream API Credentials
 
-These are the credentials code-mcp uses to call the APIs behind the SDK.
+These are the credentials toolscript uses to call the APIs behind the SDK.
 
 **CLI `--auth` flag** (quick start):
 
 ```bash
 # Named: --auth name:ENV_VAR
-code-mcp run petstore=spec.yaml --auth petstore:MY_TOKEN
+toolscript run petstore=spec.yaml --auth petstore:MY_TOKEN
 
 # Unnamed (single-spec only): --auth ENV_VAR
-code-mcp run spec.yaml --auth MY_TOKEN
+toolscript run spec.yaml --auth MY_TOKEN
 ```
 
 The tool reads the value of the environment variable at startup. The secret never appears in the command itself.
 
-**Config file** (`code-mcp.toml`):
+**Config file** (`toolscript.toml`):
 
 ```toml
 [apis.petstore]
@@ -168,9 +168,9 @@ auth_env = "STRIPE_KEY"
 Run with a config file:
 
 ```bash
-code-mcp run --config code-mcp.toml
-# Or just have code-mcp.toml in the current directory:
-code-mcp run
+toolscript run --config toolscript.toml
+# Or just have toolscript.toml in the current directory:
+toolscript run
 ```
 
 **Per-request via `_meta.auth`** (overrides all, for hosted mode):
@@ -197,7 +197,7 @@ code-mcp run
 
 ### MCP-Layer Authentication
 
-This controls who can connect to the code-mcp server itself. It only applies when using HTTP/SSE transport.
+This controls who can connect to the toolscript server itself. It only applies when using HTTP/SSE transport.
 
 - JWT validation with OIDC discovery
 - Enable with `--auth-authority` and `--auth-audience`
@@ -210,7 +210,7 @@ For local stdio usage, this layer is not needed -- the MCP client and server sha
 
 Frozen parameters are server-side fixed values that are injected into API calls at request time. They are completely hidden from the LLM — stripped from tool schemas, documentation, and search results. Use them to hardcode values like API versions, tenant IDs, or environment-specific settings.
 
-Configure frozen params in `code-mcp.toml` at two levels:
+Configure frozen params in `toolscript.toml` at two levels:
 
 ```toml
 # Global — applies to every API
@@ -295,21 +295,21 @@ Scripts execute in a sandboxed Luau VM. Here is what is and is not available.
 - Fresh VM per execution (no state leaks between scripts)
 - Credentials never exposed to Luau -- injected server-side
 
-**A note on hosting.** If you deploy code-mcp over HTTP for multiple users, you are offering your compute as a code sandbox. The sandboxing limits the abuse surface, but you should deploy behind appropriate resource constraints and network policies. For most use cases, running locally over stdio with your own credentials is the simplest and most secure option.
+**A note on hosting.** If you deploy toolscript over HTTP for multiple users, you are offering your compute as a code sandbox. The sandboxing limits the abuse surface, but you should deploy behind appropriate resource constraints and network policies. For most use cases, running locally over stdio with your own credentials is the simplest and most secure option.
 
 ## Docker
 
 Build and run:
 
 ```bash
-docker build -t code-mcp .
-docker run code-mcp https://api.example.com/openapi.json
+docker build -t toolscript .
+docker run toolscript https://api.example.com/openapi.json
 ```
 
 For HTTP transport:
 
 ```bash
-docker run -p 8080:8080 code-mcp \
+docker run -p 8080:8080 toolscript \
   https://api.example.com/openapi.json \
   --transport sse --port 8080
 ```
@@ -317,8 +317,8 @@ docker run -p 8080:8080 code-mcp \
 ## Building from Source
 
 ```bash
-git clone https://github.com/alenna/code-mcp.git
-cd code-mcp
+git clone https://github.com/alenna/toolscript.git
+cd toolscript
 cargo build --release
 cargo test
 ```
