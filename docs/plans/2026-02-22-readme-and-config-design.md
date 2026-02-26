@@ -30,7 +30,7 @@ for existing users.
 ### Flow
 
 ```
-CLI flag  -->  main.rs builds ExecutorConfig  -->  passed to CodeMcpServer::new()
+CLI flag  -->  main.rs builds ExecutorConfig  -->  passed to ToolScriptServer::new()
 ```
 
 The `serve()` function in `main.rs` currently creates `ExecutorConfig::default()`.

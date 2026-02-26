@@ -46,7 +46,7 @@ async def test_meta_auth_override(mcp_no_auth_session: ClientSession):
     """Passing _meta.auth with bearer token allows mutation on no-auth session."""
     # The Python MCP SDK's call_tool() accepts a `meta` keyword arg which maps
     # to the MCP protocol's _meta field in CallToolRequest.params.
-    # code-mcp reads auth from context.request_context.meta.get("auth").
+    # toolscript reads auth from context.request_context.meta.get("auth").
     result = await mcp_no_auth_session.call_tool(
         "execute_script",
         {"script": 'return sdk.create_pet({ name = "Meta", status = "active" })'},

@@ -2,7 +2,7 @@
 
 ## Context
 
-The code-mcp scripting runtime currently uses Lua 5.4 via mlua with a manually constructed sandbox. This design migrates to Luau (Roblox's Lua fork) to gain:
+The toolscript scripting runtime currently uses Lua 5.4 via mlua with a manually constructed sandbox. This design migrates to Luau (Roblox's Lua fork) to gain:
 
 1. **Native sandbox mode** — `lua.sandbox(true)` replaces ~20 lines of manual deny-listing with a single call that makes globals/metatables read-only and creates isolated per-script environments.
 2. **Purpose-built interrupt callback** — `set_interrupt()` replaces instruction-count hooks for timeout enforcement. Fires at VM-determined intervals, more reliable than debug hooks.

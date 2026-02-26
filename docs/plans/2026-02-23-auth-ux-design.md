@@ -17,13 +17,13 @@ The `specs` positional argument now accepts optional `name=source` syntax:
 
 ```bash
 # Auto-derive name from spec title
-code-mcp run spec.yaml
+toolscript run spec.yaml
 
 # Explicit name
-code-mcp run petstore=https://petstore.example.com/spec.json
+toolscript run petstore=https://petstore.example.com/spec.json
 
 # Multiple specs, each named
-code-mcp run petstore=petstore.yaml billing=billing.yaml
+toolscript run petstore=petstore.yaml billing=billing.yaml
 ```
 
 New `--auth` flag (repeatable):
@@ -41,16 +41,16 @@ The tool reads the value of the environment variable at startup. The secret neve
 New `--config` flag:
 
 ```bash
-code-mcp run --config code-mcp.toml
+toolscript run --config toolscript.toml
 ```
 
 When `--config` is used, positional `specs` args are disallowed.
 
-Auto-discovery: if no `specs` and no `--config` are given, the tool looks for `code-mcp.toml` in the current directory.
+Auto-discovery: if no `specs` and no `--config` are given, the tool looks for `toolscript.toml` in the current directory.
 
 ### Config File Format
 
-`code-mcp.toml`:
+`toolscript.toml`:
 
 ```toml
 [apis.petstore]
@@ -120,15 +120,15 @@ For multi-spec, explicit names are required (either via CLI `name=spec` or confi
 ```bash
 # Simplest possible: one spec, one token
 export MY_TOKEN=sk-123
-code-mcp run petstore=spec.yaml --auth petstore:MY_TOKEN
+toolscript run petstore=spec.yaml --auth petstore:MY_TOKEN
 
 # Even simpler for single-spec
 export MY_TOKEN=sk-123
-code-mcp run spec.yaml --auth MY_TOKEN
+toolscript run spec.yaml --auth MY_TOKEN
 
 # Config file for persistent/multi-spec setups
-code-mcp run --config code-mcp.toml
+toolscript run --config toolscript.toml
 
-# Or just have code-mcp.toml in the current directory
-code-mcp run
+# Or just have toolscript.toml in the current directory
+toolscript run
 ```

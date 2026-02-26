@@ -2,7 +2,7 @@
 
 ## Problem
 
-LLMs using code-mcp need to persist data from Luau scripts for downstream processing.
+LLMs using toolscript need to persist data from Luau scripts for downstream processing.
 Two key use cases:
 
 1. **Data dump for offline analysis** — LLM fetches large datasets via API, writes them to
@@ -34,7 +34,7 @@ Added to TOML config under `[output]`:
 
 ```toml
 [output]
-dir = "./code-mcp-output"       # optional, defaults to ./code-mcp-output
+dir = "./toolscript-output"       # optional, defaults to ./toolscript-output
 max_bytes = 52428800             # optional, defaults to 50MB per script execution
 enabled = true                   # optional, defaults to true
 ```
@@ -76,7 +76,7 @@ The script execution response gains a `files_written` field:
   "logs": ["Processing complete"],
   "stats": { "api_calls": 3, "duration_ms": 1200 },
   "files_written": [
-    { "name": "dataset.csv", "path": "/home/user/code-mcp-output/dataset.csv", "bytes": 524288 }
+    { "name": "dataset.csv", "path": "/home/user/toolscript-output/dataset.csv", "bytes": 524288 }
   ]
 }
 ```
@@ -133,7 +133,7 @@ return summary
 | Location | `sandbox.rs` global table |
 | Config | `[output]` section: `dir`, `max_bytes`, `enabled` |
 | CLI | `--output-dir <path>` on `serve` |
-| Default dir | `./code-mcp-output/` |
+| Default dir | `./toolscript-output/` |
 | Size limit | 50MB per script execution, configurable |
 | Safety | No traversal, no absolute paths, no null bytes |
 | Overwrite | Yes |

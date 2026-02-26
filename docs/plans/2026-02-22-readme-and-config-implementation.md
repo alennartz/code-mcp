@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn test_run_defaults() {
-        let cli = Cli::parse_from(["code-mcp", "run", "spec.yaml"]);
+        let cli = Cli::parse_from(["toolscript", "run", "spec.yaml"]);
         match cli.command {
             Command::Run {
                 timeout,
@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn test_run_custom_limits() {
         let cli = Cli::parse_from([
-            "code-mcp", "run", "spec.yaml",
+            "toolscript", "run", "spec.yaml",
             "--timeout", "60",
             "--memory-limit", "128",
             "--max-api-calls", "50",
@@ -160,7 +160,7 @@ mod tests {
 
     #[test]
     fn test_serve_defaults() {
-        let cli = Cli::parse_from(["code-mcp", "serve", "./output"]);
+        let cli = Cli::parse_from(["toolscript", "serve", "./output"]);
         match cli.command {
             Command::Serve {
                 timeout,
@@ -180,7 +180,7 @@ mod tests {
 
 **Step 2: Run tests to verify they pass**
 
-Run: `cargo test --bin code-mcp -- cli::tests -v 2>&1 | tail -10`
+Run: `cargo test --bin toolscript -- cli::tests -v 2>&1 | tail -10`
 Expected: 3 tests pass
 
 **Step 3: Commit**

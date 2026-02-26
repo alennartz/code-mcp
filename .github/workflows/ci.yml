@@ -74,7 +74,7 @@ jobs:
           context: .
           push: false
           load: true
-          tags: code-mcp:ci
+          tags: toolscript:ci
 
       - uses: actions/setup-python@v5
         with:
@@ -93,18 +93,18 @@ jobs:
         env:
           TEST_API_SERVER_URL: "http://127.0.0.1:9100"
 
-      - name: Start code-mcp container
+      - name: Start toolscript container
         run: |
-          docker run -d --name code-mcp-ci --network=host \
+          docker run -d --name toolscript-ci --network=host \
             -e TEST_API_BEARER_TOKEN=test-secret-123 \
-            code-mcp:ci \
+            toolscript:ci \
             http://127.0.0.1:9100/openapi.json \
             --transport http --port 9300
 
-          # Wait for code-mcp to be ready
+          # Wait for toolscript to be ready
           for i in $(seq 1 30); do
             if curl -s -o /dev/null http://127.0.0.1:9300/mcp 2>/dev/null; then
-              echo "code-mcp ready"
+              echo "toolscript ready"
               break
             fi
             sleep 1
@@ -114,11 +114,11 @@ jobs:
         run: python -m pytest tests/test_http_transport.py -v -k "not auth_required and not well_known"
         working-directory: e2e
         env:
-          CODE_MCP_URL: "http://127.0.0.1:9300"
+          TOOL_SCRIPT_URL: "http://127.0.0.1:9300"
 
       - name: Dump container logs on failure
         if: failure()
-        run: docker logs code-mcp-ci
+        run: docker logs toolscript-ci
 
   deploy:
     needs: [e2e-binary, e2e-docker]

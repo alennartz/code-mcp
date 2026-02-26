@@ -4,7 +4,7 @@
 
 **Goal:** Add a CI/CD pipeline that runs checks + e2e tests on PRs, and deploys a minimal Docker image to GHCR on merge to main.
 
-**Architecture:** Single workflow with 4 jobs: check -> (e2e-binary, e2e-docker) -> deploy. The Dockerfile is improved to produce a static musl binary in a FROM scratch image. E2e test fixtures gain a CODE_MCP_URL env var so HTTP tests can target an external Docker container.
+**Architecture:** Single workflow with 4 jobs: check -> (e2e-binary, e2e-docker) -> deploy. The Dockerfile is improved to produce a static musl binary in a FROM scratch image. E2e test fixtures gain a TOOL_SCRIPT_URL env var so HTTP tests can target an external Docker container.
 
 **Tech Stack:** GitHub Actions, Swatinem/rust-cache, docker/build-push-action, docker/metadata-action, docker/login-action, dtolnay/rust-toolchain, actions/setup-python
 
@@ -68,8 +68,8 @@ RUN cargo build --release --target x86_64-unknown-linux-musl
 
 FROM scratch
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/code-mcp /code-mcp
-ENTRYPOINT ["/code-mcp", "run"]
+COPY --from=builder /build/target/x86_64-unknown-linux-musl/release/toolscript /toolscript
+ENTRYPOINT ["/toolscript", "run"]
 ```
 
 Key points:
@@ -81,17 +81,17 @@ Key points:
 
 **Step 2: Build the Docker image locally**
 
-Run: `docker build -t code-mcp:test .`
+Run: `docker build -t toolscript:test .`
 Expected: Builds successfully. Watch for any linker errors related to musl or C++ compilation.
 
 **Step 3: Verify the image runs**
 
-Run: `docker run --rm code-mcp:test --help`
-Expected: Prints the code-mcp help text. This confirms the static binary runs in the scratch container.
+Run: `docker run --rm toolscript:test --help`
+Expected: Prints the toolscript help text. This confirms the static binary runs in the scratch container.
 
 **Step 4: Check image size**
 
-Run: `docker images code-mcp:test`
+Run: `docker images toolscript:test`
 Expected: Image size should be ~15-30 MB (just binary + CA certs), versus ~80MB+ for the old bookworm-slim image.
 
 **Step 5: Commit**
@@ -103,29 +103,29 @@ git commit -m "build: static musl binary with FROM scratch image"
 
 ---
 
-### Task 3: Add CODE_MCP_URL support to e2e test fixtures
+### Task 3: Add TOOL_SCRIPT_URL support to e2e test fixtures
 
 **Files:**
 - Modify: `e2e/tests/conftest.py:115-201` (the `mcp_http_session` and `mcp_http_url` fixtures)
 
-The HTTP test fixtures currently always launch a local binary process. We need them to optionally connect to an externally-running server when `CODE_MCP_URL` is set.
+The HTTP test fixtures currently always launch a local binary process. We need them to optionally connect to an externally-running server when `TOOL_SCRIPT_URL` is set.
 
-**Step 1: Write a test to verify the CODE_MCP_URL path works**
+**Step 1: Write a test to verify the TOOL_SCRIPT_URL path works**
 
 Create file `e2e/tests/test_docker_mode.py`:
 
 ```python
-"""Verify that CODE_MCP_URL mode correctly skips binary launch."""
+"""Verify that TOOL_SCRIPT_URL mode correctly skips binary launch."""
 import os
 import pytest
 
 
-def test_code_mcp_url_env_skips_binary(monkeypatch):
-    """When CODE_MCP_URL is set, fixtures should use it instead of launching a binary."""
+def test_tool_script_url_env_skips_binary(monkeypatch):
+    """When TOOL_SCRIPT_URL is set, fixtures should use it instead of launching a binary."""
     # This is a unit test for the fixture logic, not an integration test.
     # It verifies the env var is read correctly.
-    monkeypatch.setenv("CODE_MCP_URL", "http://localhost:9999")
-    assert os.environ.get("CODE_MCP_URL") == "http://localhost:9999"
+    monkeypatch.setenv("TOOL_SCRIPT_URL", "http://localhost:9999")
+    assert os.environ.get("TOOL_SCRIPT_URL") == "http://localhost:9999"
 ```
 
 Run: `cd e2e && python -m pytest tests/test_docker_mode.py -v`
@@ -133,16 +133,16 @@ Expected: PASS
 
 **Step 2: Modify the `mcp_http_url` fixture**
 
-In `e2e/tests/conftest.py`, change the `mcp_http_url` fixture (line 177) to check for `CODE_MCP_URL` first:
+In `e2e/tests/conftest.py`, change the `mcp_http_url` fixture (line 177) to check for `TOOL_SCRIPT_URL` first:
 
 ```python
 @pytest.fixture(scope="session")
-def mcp_http_url(code_mcp_binary, openapi_spec_url, jwks_server):
-    """Spawn code-mcp with HTTP transport + JWT auth, yield the base URL.
+def mcp_http_url(tool_script_binary, openapi_spec_url, jwks_server):
+    """Spawn toolscript with HTTP transport + JWT auth, yield the base URL.
 
-    If CODE_MCP_URL is set, skip spawning and use the external server.
+    If TOOL_SCRIPT_URL is set, skip spawning and use the external server.
     """
-    external_url = os.environ.get("CODE_MCP_URL")
+    external_url = os.environ.get("TOOL_SCRIPT_URL")
     if external_url:
         yield external_url
         return
@@ -154,7 +154,7 @@ def mcp_http_url(code_mcp_binary, openapi_spec_url, jwks_server):
     }
     proc = subprocess.Popen(
         [
-            str(code_mcp_binary), "run", openapi_spec_url,
+            str(tool_script_binary), "run", openapi_spec_url,
             "--transport", "http", "--port", str(port),
             "--auth-authority", "test-issuer",
             "--auth-audience", "test-audience",
@@ -173,18 +173,18 @@ def mcp_http_url(code_mcp_binary, openapi_spec_url, jwks_server):
 
 **Step 3: Modify the `mcp_http_session` fixture**
 
-Same pattern for `mcp_http_session` (line 115). When `CODE_MCP_URL` is set, connect to the external URL instead of spawning a process:
+Same pattern for `mcp_http_session` (line 115). When `TOOL_SCRIPT_URL` is set, connect to the external URL instead of spawning a process:
 
 ```python
 @pytest_asyncio.fixture(loop_scope="session", scope="session")
-async def mcp_http_session(code_mcp_binary, openapi_spec_url, jwks_server, sign_jwt):
-    """Spawn code-mcp with HTTP transport + JWT auth, connect an MCP client.
+async def mcp_http_session(tool_script_binary, openapi_spec_url, jwks_server, sign_jwt):
+    """Spawn toolscript with HTTP transport + JWT auth, connect an MCP client.
 
-    If CODE_MCP_URL is set, connect to the external server instead.
+    If TOOL_SCRIPT_URL is set, connect to the external server instead.
     """
     from mcp.client.streamable_http import streamable_http_client
 
-    external_url = os.environ.get("CODE_MCP_URL")
+    external_url = os.environ.get("TOOL_SCRIPT_URL")
     if external_url:
         base_url = external_url
     else:
@@ -195,7 +195,7 @@ async def mcp_http_session(code_mcp_binary, openapi_spec_url, jwks_server, sign_
         }
         proc = subprocess.Popen(
             [
-                str(code_mcp_binary), "run", openapi_spec_url,
+                str(tool_script_binary), "run", openapi_spec_url,
                 "--transport", "http", "--port", str(port),
                 "--auth-authority", "test-issuer",
                 "--auth-audience", "test-audience",
@@ -250,7 +250,7 @@ Note: `os` import is already needed — add `import os` at the top of `e2e/tests
 **Step 4: Run the full e2e suite to confirm no regression**
 
 Run: `cd e2e && python -m pytest tests/ -v`
-Expected: All tests pass. Without `CODE_MCP_URL` set, behavior is identical to before.
+Expected: All tests pass. Without `TOOL_SCRIPT_URL` set, behavior is identical to before.
 
 **Step 5: Clean up the test_docker_mode.py file**
 
@@ -260,7 +260,7 @@ Delete `e2e/tests/test_docker_mode.py` — it was a sanity check, not a permanen
 
 ```bash
 git add e2e/tests/conftest.py
-git commit -m "test: add CODE_MCP_URL support for running HTTP e2e tests against external server"
+git commit -m "test: add TOOL_SCRIPT_URL support for running HTTP e2e tests against external server"
 ```
 
 ---
@@ -354,7 +354,7 @@ jobs:
           context: .
           push: false
           load: true
-          tags: code-mcp:ci
+          tags: toolscript:ci
 
       - uses: actions/setup-python@v5
         with:
@@ -373,7 +373,7 @@ jobs:
         env:
           TEST_API_SERVER_URL: "http://127.0.0.1:9100"
 
-      - name: Start JWKS server and code-mcp container
+      - name: Start JWKS server and toolscript container
         run: |
           cd e2e && python -c "
           import json, base64, time, threading, socket
@@ -420,20 +420,20 @@ jobs:
           " &
           sleep 1
 
-          # Start the code-mcp container
-          docker run -d --name code-mcp-ci --network=host \
+          # Start the toolscript container
+          docker run -d --name toolscript-ci --network=host \
             -e TEST_API_BEARER_TOKEN=test-secret-123 \
-            code-mcp:ci \
+            toolscript:ci \
             http://127.0.0.1:9100/openapi.json \
             --transport http --port 9300 \
             --auth-authority test-issuer \
             --auth-audience test-audience \
             --auth-jwks-uri http://127.0.0.1:9200/jwks
 
-          # Wait for code-mcp to be ready
+          # Wait for toolscript to be ready
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:9300/.well-known/oauth-protected-resource > /dev/null 2>&1; then
-              echo "code-mcp ready"
+              echo "toolscript ready"
               break
             fi
             sleep 1
@@ -445,11 +445,11 @@ jobs:
             --override-ini="asyncio_default_fixture_loop_scope=session"
         working-directory: e2e
         env:
-          CODE_MCP_URL: "http://127.0.0.1:9300"
+          TOOL_SCRIPT_URL: "http://127.0.0.1:9300"
 
       - name: Dump container logs on failure
         if: failure()
-        run: docker logs code-mcp-ci
+        run: docker logs toolscript-ci
 
   deploy:
     name: Deploy to GHCR
@@ -509,7 +509,7 @@ Expected: All Rust tests pass with the rustls-tls switch.
 
 **Step 2: Build the Docker image**
 
-Run: `docker build -t code-mcp:test .`
+Run: `docker build -t toolscript:test .`
 Expected: Builds successfully with musl target.
 
 **Step 3: Run e2e tests against binary**
@@ -526,10 +526,10 @@ This replicates what the e2e-docker CI job does:
 cd e2e && TEST_API_SERVER_URL=http://127.0.0.1:9100 \
   python -m uvicorn test_api.app:app --host 127.0.0.1 --port 9100 --log-level warning &
 
-# Start code-mcp container (no auth for quick smoke test)
+# Start toolscript container (no auth for quick smoke test)
 docker run -d --name smoke --network=host \
   -e TEST_API_BEARER_TOKEN=test-secret-123 \
-  code-mcp:test \
+  toolscript:test \
   http://127.0.0.1:9100/openapi.json \
   --transport http --port 9300
 
@@ -537,7 +537,7 @@ docker run -d --name smoke --network=host \
 sleep 3
 
 # Run HTTP tests
-cd e2e && CODE_MCP_URL=http://127.0.0.1:9300 \
+cd e2e && TOOL_SCRIPT_URL=http://127.0.0.1:9300 \
   python -m pytest tests/test_http_transport.py -v -k "not auth_required and not well_known"
 
 # Clean up

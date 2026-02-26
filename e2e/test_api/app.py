@@ -11,7 +11,7 @@ from test_api.seed import seed_owners, seed_pets
 app = FastAPI(
     title="Test API",
     version="1.0.0",
-    description="E2E test API for code-mcp",
+    description="E2E test API for toolscript",
 )
 
 
@@ -47,7 +47,7 @@ def custom_openapi() -> dict[str, Any]:
     )
     schema["openapi"] = "3.0.3"
     schema = _downgrade_schema(schema)
-    # Inject the server URL so code-mcp knows the base URL for API calls.
+    # Inject the server URL so toolscript knows the base URL for API calls.
     # Set TEST_API_SERVER_URL env var before the first /openapi.json request.
     server_url = os.environ.get("TEST_API_SERVER_URL")
     if server_url:

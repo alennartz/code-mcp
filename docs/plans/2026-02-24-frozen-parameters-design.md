@@ -4,12 +4,12 @@
 
 Two related changes to the MCP server:
 
-1. **Frozen parameters**: Server-side fixed values configured in `code-mcp.toml` that are completely hidden from the LLM and injected at request time.
+1. **Frozen parameters**: Server-side fixed values configured in `toolscript.toml` that are completely hidden from the LLM and injected at request time.
 2. **Table-based calling convention**: Switch from positional args to named table args in the Luau SDK, replacing the fragile positional system.
 
 ## Configuration
 
-Frozen params are configured in `code-mcp.toml` at two levels:
+Frozen params are configured in `toolscript.toml` at two levels:
 
 ```toml
 # Global — applies to every API
@@ -25,7 +25,7 @@ tenant_id = "abc-123"
 
 Per-API values override global values when the same parameter name appears in both. Non-matching frozen param names (params that don't exist in an operation) are silently ignored.
 
-Config structs gain `frozen_params: Option<HashMap<String, String>>` at both `CodeMcpConfig` and `ConfigApiEntry` levels.
+Config structs gain `frozen_params: Option<HashMap<String, String>>` at both `ToolScriptConfig` and `ConfigApiEntry` levels.
 
 ## Manifest
 

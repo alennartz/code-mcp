@@ -2,9 +2,9 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build a full end-to-end test harness: a FastAPI test server, pytest fixtures to manage code-mcp lifecycle, and Python MCP SDK tests that exercise the entire pipeline.
+**Goal:** Build a full end-to-end test harness: a FastAPI test server, pytest fixtures to manage toolscript lifecycle, and Python MCP SDK tests that exercise the entire pipeline.
 
-**Architecture:** FastAPI app serves endpoints + OpenAPI spec on a random port. Pytest fixtures spawn `code-mcp run` pointed at the spec URL, connect the Python MCP SDK client over stdio (primary) or HTTP/SSE (secondary). Tests invoke MCP tools and execute Luau scripts, asserting correct responses.
+**Architecture:** FastAPI app serves endpoints + OpenAPI spec on a random port. Pytest fixtures spawn `toolscript run` pointed at the spec URL, connect the Python MCP SDK client over stdio (primary) or HTTP/SSE (secondary). Tests invoke MCP tools and execute Luau scripts, asserting correct responses.
 
 **Tech Stack:** Python 3.11+, FastAPI, uvicorn, mcp (Python SDK), pytest, pytest-asyncio, PyJWT, cryptography, httpx, uv (package manager)
 
@@ -21,7 +21,7 @@
 
 ```toml
 [project]
-name = "code-mcp-e2e"
+name = "toolscript-e2e"
 version = "0.1.0"
 requires-python = ">=3.11"
 dependencies = [
@@ -45,7 +45,7 @@ Create `e2e/test_api/__init__.py` and `e2e/tests/__init__.py` as empty files.
 
 **Step 3: Install dependencies**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv sync`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv sync`
 Expected: Dependencies resolve and install successfully.
 
 **Step 4: Commit**
@@ -186,7 +186,7 @@ git commit -m "feat(e2e): add test API auth middleware"
 
 **Step 1: Write the FastAPI app**
 
-The app title MUST be "Test API" — code-mcp derives the api name as `test_api` from this, and env vars use `TEST_API_` prefix accordingly.
+The app title MUST be "Test API" — toolscript derives the api name as `test_api` from this, and env vars use `TEST_API_` prefix accordingly.
 
 ```python
 from fastapi import Depends, FastAPI, HTTPException
@@ -198,7 +198,7 @@ from test_api.seed import seed_owners, seed_pets
 app = FastAPI(
     title="Test API",
     version="1.0.0",
-    description="E2E test API for code-mcp",
+    description="E2E test API for toolscript",
 )
 
 # In-memory state
@@ -278,7 +278,7 @@ def list_owner_pets(owner_id: int) -> list[Pet]:
 
 **Step 2: Verify the app starts and the OpenAPI spec is correct**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run python -c "from test_api.app import app; import json; print(json.dumps(app.openapi(), indent=2))" | head -40`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run python -c "from test_api.app import app; import json; print(json.dumps(app.openapi(), indent=2))" | head -40`
 Expected: Valid OpenAPI 3.1 JSON with paths for `/pets`, `/pets/{pet_id}`, `/owners`, `/owners/{owner_id}/pets`, `/reset`.
 
 **Step 3: Commit**
@@ -295,7 +295,7 @@ git commit -m "feat(e2e): add FastAPI test app with CRUD endpoints"
 **Files:**
 - Modify: `e2e/test_api/app.py`
 
-FastAPI doesn't auto-generate `securitySchemes` from a plain `Depends` function. We need to use FastAPI's security utilities so the OpenAPI spec includes the auth info that code-mcp needs to wire up credentials.
+FastAPI doesn't auto-generate `securitySchemes` from a plain `Depends` function. We need to use FastAPI's security utilities so the OpenAPI spec includes the auth info that toolscript needs to wire up credentials.
 
 **Step 1: Update app.py to use FastAPI security schemes**
 
@@ -351,7 +351,7 @@ In `app.py`, the imports and usage of `Depends(require_auth)` remain the same �
 
 **Step 2: Verify OpenAPI spec now includes securitySchemes**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run python -c "from test_api.app import app; import json; spec = app.openapi(); print(json.dumps(spec.get('components', {}).get('securitySchemes', {}), indent=2))"`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run python -c "from test_api.app import app; import json; spec = app.openapi(); print(json.dumps(spec.get('components', {}).get('securitySchemes', {}), indent=2))"`
 Expected: Output includes `HTTPBearer` and `APIKeyHeader` schemes.
 
 **Step 3: Commit**
@@ -368,7 +368,7 @@ git commit -m "feat(e2e): add OpenAPI security schemes for bearer and API key"
 **Files:**
 - Create: `e2e/conftest.py`
 
-These fixtures manage the full lifecycle: start test API, build code-mcp, spawn code-mcp process, connect MCP client.
+These fixtures manage the full lifecycle: start test API, build toolscript, spawn toolscript process, connect MCP client.
 
 **Step 1: Write conftest.py**
 
@@ -385,7 +385,7 @@ import pytest
 import uvicorn
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CODE_MCP_BINARY = PROJECT_ROOT / "target" / "release" / "code-mcp"
+TOOL_SCRIPT_BINARY = PROJECT_ROOT / "target" / "release" / "toolscript"
 
 
 def _free_port() -> int:
@@ -408,14 +408,14 @@ def _wait_for_http(url: str, timeout: float = 10.0) -> None:
 
 
 @pytest.fixture(scope="session")
-def code_mcp_binary() -> Path:
-    if not CODE_MCP_BINARY.exists():
+def tool_script_binary() -> Path:
+    if not TOOL_SCRIPT_BINARY.exists():
         subprocess.run(
             ["cargo", "build", "--release"],
             cwd=PROJECT_ROOT,
             check=True,
         )
-    return CODE_MCP_BINARY
+    return TOOL_SCRIPT_BINARY
 
 
 @pytest.fixture(scope="session")
@@ -449,7 +449,7 @@ def reset_test_data(test_api_url: str) -> None:
 
 **Step 2: Verify fixtures load**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest --co -q`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest --co -q`
 Expected: No errors, no tests collected yet (empty test files).
 
 **Step 3: Commit**
@@ -466,7 +466,7 @@ git commit -m "feat(e2e): add session-scoped pytest fixtures for test API and bi
 **Files:**
 - Create: `e2e/tests/conftest.py`
 
-This fixture spawns `code-mcp run <spec_url>` with the correct env vars and connects the Python MCP SDK over stdio.
+This fixture spawns `toolscript run <spec_url>` with the correct env vars and connects the Python MCP SDK over stdio.
 
 **Step 1: Write the MCP stdio fixture**
 
@@ -482,8 +482,8 @@ from mcp.client.stdio import stdio_client
 
 
 @pytest.fixture(scope="session")
-def mcp_stdio_session(code_mcp_binary: Path, openapi_spec_url: str):
-    """Spawn code-mcp and connect an MCP client over stdio."""
+def mcp_stdio_session(tool_script_binary: Path, openapi_spec_url: str):
+    """Spawn toolscript and connect an MCP client over stdio."""
     env = {
         "PATH": "/usr/bin:/bin",
         "TEST_API_BEARER_TOKEN": "test-secret-123",
@@ -492,7 +492,7 @@ def mcp_stdio_session(code_mcp_binary: Path, openapi_spec_url: str):
 
     async def _run():
         server_params = StdioServerParameters(
-            command=str(code_mcp_binary),
+            command=str(tool_script_binary),
             args=["run", openapi_spec_url],
             env=env,
         )
@@ -518,14 +518,14 @@ Note: the async context manager lifecycle for a session-scoped fixture with asyn
 
 ```python
 @pytest_asyncio.fixture(scope="session")
-async def mcp_stdio_session(code_mcp_binary: Path, openapi_spec_url: str):
+async def mcp_stdio_session(tool_script_binary: Path, openapi_spec_url: str):
     env = {
         "PATH": "/usr/bin:/bin",
         "TEST_API_BEARER_TOKEN": "test-secret-123",
         "TEST_API_API_KEY": "test-key-456",
     }
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(tool_script_binary),
         args=["run", openapi_spec_url],
         env=env,
     )
@@ -539,7 +539,7 @@ Prefer the `pytest_asyncio.fixture` approach — it's cleaner and `pytest-asynci
 
 **Step 2: Verify the fixture loads without error**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest --co -q`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest --co -q`
 Expected: No collection errors.
 
 **Step 3: Commit**
@@ -578,8 +578,8 @@ async def test_list_tools(mcp_stdio_session: ClientSession):
 
 **Step 2: Run the smoke test**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest tests/test_stdio_tools.py::test_list_tools -v`
-Expected: PASS. This proves the entire pipeline works: test API serving spec → code-mcp generating SDK → MCP server running → client connected.
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest tests/test_stdio_tools.py::test_list_tools -v`
+Expected: PASS. This proves the entire pipeline works: test API serving spec → toolscript generating SDK → MCP server running → client connected.
 
 **Step 3: Write remaining tool tests**
 
@@ -633,7 +633,7 @@ async def test_get_schema(mcp_stdio_session: ClientSession):
 
 **Step 4: Run all tool tests**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest tests/test_stdio_tools.py -v`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest tests/test_stdio_tools.py -v`
 Expected: All PASS.
 
 **Step 5: Commit**
@@ -652,7 +652,7 @@ git commit -m "test(e2e): add MCP tool invocation tests over stdio"
 
 These tests call the `execute_script` tool with Luau scripts and assert the results. The script results come back as JSON text in the tool response.
 
-Important context: code-mcp's `execute_script` tool returns a JSON object with `result`, `logs`, and `stats` fields. The `result` is whatever the Luau script returns.
+Important context: toolscript's `execute_script` tool returns a JSON object with `result`, `logs`, and `stats` fields. The `result` is whatever the Luau script returns.
 
 **Step 1: Write the first script test**
 
@@ -681,12 +681,12 @@ async def test_list_pets(mcp_stdio_session: ClientSession):
 
 **Step 2: Run to verify basic script execution works**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest tests/test_stdio_scripts.py::test_list_pets -v`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest tests/test_stdio_scripts.py::test_list_pets -v`
 Expected: PASS. If the response structure differs from expected, adjust `parse_result` accordingly — read the actual response text to understand the format.
 
 **Step 3: Write remaining script tests**
 
-Note: The exact Luau function names depend on what code-mcp generates from the OpenAPI spec. The `operationId` values become snake_case function names. From the FastAPI-generated spec, the operationIds will be the Python function names: `list_pets`, `create_pet`, `get_pet`, `update_pet`, `delete_pet`, `list_owners`, `list_owner_pets`. code-mcp converts these to snake_case SDK functions.
+Note: The exact Luau function names depend on what toolscript generates from the OpenAPI spec. The `operationId` values become snake_case function names. From the FastAPI-generated spec, the operationIds will be the Python function names: `list_pets`, `create_pet`, `get_pet`, `update_pet`, `delete_pet`, `list_owners`, `list_owner_pets`. toolscript converts these to snake_case SDK functions.
 
 Adjust function names in scripts if the generated names differ. Check with `list_functions` tool first.
 
@@ -837,10 +837,10 @@ async def test_script_error_handling(mcp_stdio_session: ClientSession):
 
 **Step 4: Run all script tests**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest tests/test_stdio_scripts.py -v`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest tests/test_stdio_scripts.py -v`
 Expected: All PASS.
 
-Troubleshooting: If function names don't match, run `list_functions` first to see what code-mcp generated. FastAPI generates operationIds from the Python function names. The exact parameter names (e.g., `pet_id` vs `petId`) depend on what the OpenAPI spec contains — FastAPI uses the Python parameter name. Adjust Luau scripts accordingly.
+Troubleshooting: If function names don't match, run `list_functions` first to see what toolscript generated. FastAPI generates operationIds from the Python function names. The exact parameter names (e.g., `pet_id` vs `petId`) depend on what the OpenAPI spec contains — FastAPI uses the Python parameter name. Adjust Luau scripts accordingly.
 
 **Step 5: Commit**
 
@@ -860,7 +860,7 @@ These tests verify upstream API auth behavior: env vars, `_meta.auth` override, 
 
 **Step 1: Write auth tests**
 
-For the `_meta.auth` test, we need a separate code-mcp instance WITHOUT the env var set, and pass credentials via `_meta.auth` in the tool call. Since the session-scoped fixture always sets env vars, we'll spawn a fresh process for these tests.
+For the `_meta.auth` test, we need a separate toolscript instance WITHOUT the env var set, and pass credentials via `_meta.auth` in the tool call. Since the session-scoped fixture always sets env vars, we'll spawn a fresh process for these tests.
 
 ```python
 import json
@@ -878,11 +878,11 @@ def parse_result(tool_result) -> dict:
 
 
 @pytest_asyncio.fixture
-async def mcp_no_auth_session(code_mcp_binary: Path, openapi_spec_url: str):
-    """code-mcp instance with NO upstream API credentials set."""
+async def mcp_no_auth_session(tool_script_binary: Path, openapi_spec_url: str):
+    """toolscript instance with NO upstream API credentials set."""
     env = {"PATH": "/usr/bin:/bin"}
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(tool_script_binary),
         args=["run", openapi_spec_url],
         env=env,
     )
@@ -943,11 +943,11 @@ async def test_bearer_token_auth(mcp_stdio_session: ClientSession):
     assert data["result"]["name"] == "Bearer"
 ```
 
-Note: API key auth can't easily be tested separately from bearer in the env-var flow because `load_auth_from_env` checks `BEARER_TOKEN` first and stops. To test API key auth, spawn another code-mcp instance with only `TEST_API_API_KEY` set. Add this if needed in a follow-up.
+Note: API key auth can't easily be tested separately from bearer in the env-var flow because `load_auth_from_env` checks `BEARER_TOKEN` first and stops. To test API key auth, spawn another toolscript instance with only `TEST_API_API_KEY` set. Add this if needed in a follow-up.
 
 **Step 2: Run auth tests**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest tests/test_auth.py -v`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest tests/test_auth.py -v`
 Expected: All PASS.
 
 **Step 3: Commit**
@@ -964,7 +964,7 @@ git commit -m "test(e2e): add upstream auth and _meta.auth override tests"
 **Files:**
 - Modify: `e2e/tests/test_stdio_scripts.py` (add limit tests at the bottom)
 
-These tests need a code-mcp instance with short limits. Add a fixture and tests.
+These tests need a toolscript instance with short limits. Add a fixture and tests.
 
 **Step 1: Add limited-instance fixture to `e2e/tests/conftest.py`**
 
@@ -972,14 +972,14 @@ Append to the existing `e2e/tests/conftest.py`:
 
 ```python
 @pytest_asyncio.fixture
-async def mcp_limited_session(code_mcp_binary: Path, openapi_spec_url: str):
-    """code-mcp instance with short execution limits."""
+async def mcp_limited_session(tool_script_binary: Path, openapi_spec_url: str):
+    """toolscript instance with short execution limits."""
     env = {
         "PATH": "/usr/bin:/bin",
         "TEST_API_BEARER_TOKEN": "test-secret-123",
     }
     server_params = StdioServerParameters(
-        command=str(code_mcp_binary),
+        command=str(tool_script_binary),
         args=[
             "run", openapi_spec_url,
             "--timeout", "2",
@@ -1036,7 +1036,7 @@ async def test_sandbox_no_file_io(mcp_stdio_session: ClientSession):
 
 **Step 3: Run limit tests**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest tests/test_stdio_scripts.py -k "timeout or max_api or sandbox" -v`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest tests/test_stdio_scripts.py -k "timeout or max_api or sandbox" -v`
 Expected: All PASS.
 
 **Step 4: Commit**
@@ -1152,12 +1152,12 @@ def sign_jwt(jwt_keys):
 
 @pytest_asyncio.fixture
 async def mcp_http_session(
-    code_mcp_binary: Path,
+    tool_script_binary: Path,
     openapi_spec_url: str,
     jwks_server: str,
     sign_jwt,
 ):
-    """code-mcp over HTTP/SSE with JWT auth."""
+    """toolscript over HTTP/SSE with JWT auth."""
     from mcp.client.streamable_http import streamable_http_client
 
     port = _free_port()
@@ -1167,7 +1167,7 @@ async def mcp_http_session(
     }
     proc = subprocess.Popen(
         [
-            str(code_mcp_binary), "run", openapi_spec_url,
+            str(tool_script_binary), "run", openapi_spec_url,
             "--transport", "http",
             "--port", str(port),
             "--auth-authority", "test-issuer",
@@ -1196,11 +1196,11 @@ async def mcp_http_session(
 
 @pytest_asyncio.fixture
 async def mcp_http_no_jwt_url(
-    code_mcp_binary: Path,
+    tool_script_binary: Path,
     openapi_spec_url: str,
     jwks_server: str,
 ):
-    """Returns the URL of a code-mcp HTTP server (with auth enabled) for raw HTTP testing."""
+    """Returns the URL of a toolscript HTTP server (with auth enabled) for raw HTTP testing."""
     port = _free_port()
     env = {
         "PATH": "/usr/bin:/bin",
@@ -1208,7 +1208,7 @@ async def mcp_http_no_jwt_url(
     }
     proc = subprocess.Popen(
         [
-            str(code_mcp_binary), "run", openapi_spec_url,
+            str(tool_script_binary), "run", openapi_spec_url,
             "--transport", "http",
             "--port", str(port),
             "--auth-authority", "test-issuer",
@@ -1285,7 +1285,7 @@ async def test_http_well_known(mcp_http_no_jwt_url: str):
 
 **Step 3: Run HTTP transport tests**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest tests/test_http_transport.py -v`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest tests/test_http_transport.py -v`
 Expected: All PASS.
 
 **Step 4: Commit**
@@ -1301,7 +1301,7 @@ git commit -m "test(e2e): add HTTP/SSE transport and JWT auth tests"
 
 **Step 1: Run the full e2e suite**
 
-Run: `cd /home/alenna/repos/code-mcp/e2e && uv run pytest -v`
+Run: `cd /home/alenna/repos/toolscript/e2e && uv run pytest -v`
 Expected: All tests pass (~25 tests).
 
 **Step 2: Add e2e to the project .gitignore if needed**
@@ -1326,13 +1326,13 @@ git commit -m "chore(e2e): final cleanup and gitignore updates"
 
 Throughout implementation, you will likely need to adapt:
 
-1. **Luau function names**: The exact SDK function names depend on what code-mcp generates from the FastAPI OpenAPI spec. FastAPI uses the Python function name as `operationId`. Run `list_functions` tool early and adjust scripts.
+1. **Luau function names**: The exact SDK function names depend on what toolscript generates from the FastAPI OpenAPI spec. FastAPI uses the Python function name as `operationId`. Run `list_functions` tool early and adjust scripts.
 
-2. **Luau parameter syntax**: Parameters might be positional or table-based depending on how code-mcp's registry binds them. Check `get_function_docs` output for each function.
+2. **Luau parameter syntax**: Parameters might be positional or table-based depending on how toolscript's registry binds them. Check `get_function_docs` output for each function.
 
 3. **Response structure**: The `execute_script` tool's response format (`result`, `logs`, `stats` fields) should be verified from the first passing test. Adjust `parse_result` helper accordingly.
 
-4. **OpenAPI spec version**: FastAPI generates OpenAPI 3.1 by default. code-mcp's parser uses `openapiv3` crate which handles 3.0.x. If there are parsing issues, pin FastAPI to generate 3.0 with `app = FastAPI(..., openapi_version="3.0.3")` in `app.py`.
+4. **OpenAPI spec version**: FastAPI generates OpenAPI 3.1 by default. toolscript's parser uses `openapiv3` crate which handles 3.0.x. If there are parsing issues, pin FastAPI to generate 3.0 with `app = FastAPI(..., openapi_version="3.0.3")` in `app.py`.
 
 5. **`_meta` passing**: The Python MCP SDK may or may not support passing `_meta` in `call_tool` arguments directly. If not, the `_meta.auth` test needs adjustment — possibly by including `_meta` in the JSON-RPC params directly.
 

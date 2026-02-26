@@ -101,12 +101,12 @@ pub struct ConfigApiEntry {
 
 /// Top-level TOML config structure.
 #[derive(Debug, Clone, Deserialize)]
-pub struct CodeMcpConfig {
+pub struct ToolScriptConfig {
     pub apis: HashMap<String, ConfigApiEntry>,
 }
 
 /// Load and parse a TOML config file.
-pub fn load_config(path: &Path) -> anyhow::Result<CodeMcpConfig> {
+pub fn load_config(path: &Path) -> anyhow::Result<ToolScriptConfig> {
     todo!()
 }
 
@@ -126,7 +126,7 @@ pub fn resolve_cli_auth(
 }
 
 /// Resolve auth credentials from a config file.
-pub fn resolve_config_auth(config: &CodeMcpConfig) -> anyhow::Result<AuthCredentialsMap> {
+pub fn resolve_config_auth(config: &ToolScriptConfig) -> anyhow::Result<AuthCredentialsMap> {
     todo!()
 }
 
@@ -228,7 +228,7 @@ mod tests {
     #[test]
     fn test_load_config_basic() {
         let dir = tempfile::tempdir().unwrap();
-        let config_path = dir.path().join("code-mcp.toml");
+        let config_path = dir.path().join("toolscript.toml");
         std::fs::write(&config_path, r#"
 [apis.petstore]
 spec = "https://petstore.example.com/spec.json"
@@ -248,7 +248,7 @@ auth = "key-billing-123"
     #[test]
     fn test_load_config_basic_auth() {
         let dir = tempfile::tempdir().unwrap();
-        let config_path = dir.path().join("code-mcp.toml");
+        let config_path = dir.path().join("toolscript.toml");
         std::fs::write(&config_path, r#"
 [apis.legacy]
 spec = "./legacy.yaml"
@@ -273,7 +273,7 @@ password = "secret"
     #[test]
     fn test_load_config_auth_env() {
         let dir = tempfile::tempdir().unwrap();
-        let config_path = dir.path().join("code-mcp.toml");
+        let config_path = dir.path().join("toolscript.toml");
         std::fs::write(&config_path, r#"
 [apis.stripe]
 spec = "./stripe.yaml"
@@ -293,7 +293,7 @@ auth_env = "STRIPE_KEY"
             auth: Some(ConfigAuth::Direct("sk-direct-token".to_string())),
             auth_env: None,
         });
-        let config = CodeMcpConfig { apis };
+        let config = ToolScriptConfig { apis };
         let result = resolve_config_auth(&config).unwrap();
         assert_eq!(result.len(), 1);
         match &result["petstore"] {
@@ -314,7 +314,7 @@ auth_env = "STRIPE_KEY"
             }),
             auth_env: None,
         });
-        let config = CodeMcpConfig { apis };
+        let config = ToolScriptConfig { apis };
         let result = resolve_config_auth(&config).unwrap();
         match &result["legacy"] {
             AuthCredentials::Basic { username, password } => {
@@ -335,7 +335,7 @@ auth_env = "STRIPE_KEY"
             auth: None,
             auth_env: Some("TEST_STRIPE_KEY".to_string()),
         });
-        let config = CodeMcpConfig { apis };
+        let config = ToolScriptConfig { apis };
         let result = resolve_config_auth(&config).unwrap();
         unsafe { std::env::remove_var("TEST_STRIPE_KEY") };
 
@@ -419,10 +419,10 @@ Expected: PASS
 **Step 8: Implement `load_config`**
 
 ```rust
-pub fn load_config(path: &Path) -> anyhow::Result<CodeMcpConfig> {
+pub fn load_config(path: &Path) -> anyhow::Result<ToolScriptConfig> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| anyhow::anyhow!("failed to read config file {}: {e}", path.display()))?;
-    let config: CodeMcpConfig = toml::from_str(&content)
+    let config: ToolScriptConfig = toml::from_str(&content)
         .map_err(|e| anyhow::anyhow!("failed to parse config file {}: {e}", path.display()))?;
     Ok(config)
 }
@@ -480,7 +480,7 @@ Expected: PASS
 **Step 12: Implement `resolve_config_auth`**
 
 ```rust
-pub fn resolve_config_auth(config: &CodeMcpConfig) -> anyhow::Result<AuthCredentialsMap> {
+pub fn resolve_config_auth(config: &ToolScriptConfig) -> anyhow::Result<AuthCredentialsMap> {
     let mut map = AuthCredentialsMap::new();
     for (api_name, entry) in &config.apis {
         if let Some(auth) = &entry.auth {
@@ -603,12 +603,12 @@ Also update `test_derive_api_name` and `test_derive_api_name_with_spaces` — th
 **Step 3: Update `tests/codegen_integration.rs`**
 
 ```rust
-use code_mcp::config::SpecInput;
+use tool_script::config::SpecInput;
 
 #[tokio::test]
 async fn test_generate_from_petstore() {
     let output_dir = tempfile::tempdir().unwrap();
-    code_mcp::codegen::generate::generate(
+    tool_script::codegen::generate::generate(
         &[SpecInput { name: None, source: "testdata/petstore.yaml".to_string() }],
         output_dir.path(),
     )
@@ -623,7 +623,7 @@ async fn test_generate_from_petstore() {
 Update both `generate()` calls:
 
 ```rust
-use code_mcp::config::SpecInput;
+use tool_script::config::SpecInput;
 
 // Line 13:
 generate(
@@ -691,7 +691,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "code-mcp", about = "Generate MCP servers from OpenAPI specs")]
+#[command(name = "toolscript", about = "Generate MCP servers from OpenAPI specs")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -796,7 +796,7 @@ mod tests {
 
     #[test]
     fn test_run_with_spec() {
-        let cli = Cli::parse_from(["code-mcp", "run", "spec.yaml"]);
+        let cli = Cli::parse_from(["toolscript", "run", "spec.yaml"]);
         match cli.command {
             Command::Run { specs, config, api_auth, .. } => {
                 assert_eq!(specs, vec!["spec.yaml"]);
@@ -809,11 +809,11 @@ mod tests {
 
     #[test]
     fn test_run_with_config() {
-        let cli = Cli::parse_from(["code-mcp", "run", "--config", "code-mcp.toml"]);
+        let cli = Cli::parse_from(["toolscript", "run", "--config", "toolscript.toml"]);
         match cli.command {
             Command::Run { specs, config, .. } => {
                 assert!(specs.is_empty());
-                assert_eq!(config.unwrap().to_str().unwrap(), "code-mcp.toml");
+                assert_eq!(config.unwrap().to_str().unwrap(), "toolscript.toml");
             }
             _ => panic!("expected Run"),
         }
@@ -822,7 +822,7 @@ mod tests {
     #[test]
     fn test_run_with_auth_flag() {
         let cli = Cli::parse_from([
-            "code-mcp", "run", "petstore=spec.yaml",
+            "toolscript", "run", "petstore=spec.yaml",
             "--auth", "petstore:MY_TOKEN",
         ]);
         match cli.command {
@@ -837,7 +837,7 @@ mod tests {
     #[test]
     fn test_run_with_multiple_auth() {
         let cli = Cli::parse_from([
-            "code-mcp", "run", "a=a.yaml", "b=b.yaml",
+            "toolscript", "run", "a=a.yaml", "b=b.yaml",
             "--auth", "a:TOKEN_A",
             "--auth", "b:TOKEN_B",
         ]);
@@ -851,7 +851,7 @@ mod tests {
 
     #[test]
     fn test_run_defaults() {
-        let cli = Cli::parse_from(["code-mcp", "run", "spec.yaml"]);
+        let cli = Cli::parse_from(["toolscript", "run", "spec.yaml"]);
         match cli.command {
             Command::Run { timeout, memory_limit, max_api_calls, .. } => {
                 assert_eq!(timeout, 30);
@@ -864,7 +864,7 @@ mod tests {
 
     #[test]
     fn test_serve_defaults() {
-        let cli = Cli::parse_from(["code-mcp", "serve", "./output"]);
+        let cli = Cli::parse_from(["toolscript", "serve", "./output"]);
         match cli.command {
             Command::Serve { timeout, memory_limit, max_api_calls, .. } => {
                 assert_eq!(timeout, 30);
@@ -900,7 +900,7 @@ git commit -m "feat: add --auth and --config CLI flags to run/generate/serve com
 
 Replace `src/main.rs` with the updated logic. Key changes:
 - Parse `specs` through `parse_spec_arg`
-- Support `--config` with auto-discovery of `code-mcp.toml`
+- Support `--config` with auto-discovery of `toolscript.toml`
 - Resolve auth from CLI `--auth` or config file instead of `load_auth_from_env`
 - Warn when a spec declares auth but no credentials are configured
 
@@ -913,16 +913,16 @@ use std::sync::Arc;
 use clap::Parser;
 use cli::{Cli, Command};
 
-use code_mcp::codegen::generate::generate;
-use code_mcp::codegen::manifest::Manifest;
-use code_mcp::config::{
-    self, CodeMcpConfig, SpecInput, load_config, parse_auth_arg, parse_spec_arg,
+use tool_script::codegen::generate::generate;
+use tool_script::codegen::manifest::Manifest;
+use tool_script::config::{
+    self, ToolScriptConfig, SpecInput, load_config, parse_auth_arg, parse_spec_arg,
     resolve_cli_auth, resolve_config_auth,
 };
-use code_mcp::runtime::executor::ExecutorConfig;
-use code_mcp::runtime::http::{AuthCredentialsMap, HttpHandler};
-use code_mcp::server::CodeMcpServer;
-use code_mcp::server::auth::McpAuthConfig;
+use tool_script::runtime::executor::ExecutorConfig;
+use tool_script::runtime::http::{AuthCredentialsMap, HttpHandler};
+use tool_script::server::ToolScriptServer;
+use tool_script::server::auth::McpAuthConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -1013,11 +1013,11 @@ fn resolve_spec_inputs(specs: Vec<String>, config_path: Option<&Path>) -> anyhow
 }
 
 /// Like `resolve_spec_inputs` but also returns the parsed config for auth resolution.
-/// Supports auto-discovery of `code-mcp.toml` when no specs and no --config are given.
+/// Supports auto-discovery of `toolscript.toml` when no specs and no --config are given.
 fn resolve_run_inputs(
     specs: Vec<String>,
     config_path: Option<&Path>,
-) -> anyhow::Result<(Vec<SpecInput>, Option<CodeMcpConfig>)> {
+) -> anyhow::Result<(Vec<SpecInput>, Option<ToolScriptConfig>)> {
     if let Some(path) = config_path {
         if !specs.is_empty() {
             anyhow::bail!("cannot use --config with positional spec arguments");
@@ -1031,8 +1031,8 @@ fn resolve_run_inputs(
     }
 
     if specs.is_empty() {
-        // Auto-discover code-mcp.toml in current directory
-        let default_path = Path::new("code-mcp.toml");
+        // Auto-discover toolscript.toml in current directory
+        let default_path = Path::new("toolscript.toml");
         if default_path.exists() {
             let config = load_config(default_path)?;
             let inputs: Vec<SpecInput> = config.apis.iter().map(|(name, entry)| SpecInput {
@@ -1041,7 +1041,7 @@ fn resolve_run_inputs(
             }).collect();
             return Ok((inputs, Some(config)));
         }
-        anyhow::bail!("no specs provided. Pass spec paths/URLs as arguments, use --config, or create code-mcp.toml");
+        anyhow::bail!("no specs provided. Pass spec paths/URLs as arguments, use --config, or create toolscript.toml");
     }
 
     Ok((specs.iter().map(|s| parse_spec_arg(s)).collect(), None))
@@ -1086,7 +1086,7 @@ fn warn_missing_auth(manifest: &Manifest, auth: &AuthCredentialsMap) {
     }
 }
 
-/// Create a `CodeMcpServer` from a manifest and serve it with the given transport.
+/// Create a `ToolScriptServer` from a manifest and serve it with the given transport.
 async fn serve(
     manifest: Manifest,
     transport: &str,
@@ -1103,7 +1103,7 @@ async fn serve(
         memory_limit: Some(memory_limit * 1024 * 1024),
         max_api_calls: Some(max_api_calls),
     };
-    let server = CodeMcpServer::new(manifest, handler, auth, config);
+    let server = ToolScriptServer::new(manifest, handler, auth, config);
 
     match transport {
         "stdio" => serve_stdio(server).await,
@@ -1183,11 +1183,11 @@ Point at an OpenAPI spec and provide your API key:
 
 ```bash
 export MY_TOKEN=your-token-here
-code-mcp run petstore=https://petstore3.swagger.io/api/v3/openapi.json \
+toolscript run petstore=https://petstore3.swagger.io/api/v3/openapi.json \
   --auth petstore:MY_TOKEN
 ```
 
-Or use a config file (`code-mcp.toml`):
+Or use a config file (`toolscript.toml`):
 
 ```toml
 [apis.petstore]
@@ -1196,7 +1196,7 @@ auth = "your-token-here"
 ```
 
 ```bash
-code-mcp run
+toolscript run
 ```
 
 Add the server to your MCP client config:
@@ -1205,7 +1205,7 @@ Add the server to your MCP client config:
 {
   "mcpServers": {
     "petstore": {
-      "command": "code-mcp",
+      "command": "toolscript",
       "args": ["run", "petstore=https://petstore3.swagger.io/api/v3/openapi.json", "--auth", "petstore:PETSTORE_TOKEN"],
       "env": {
         "PETSTORE_TOKEN": "your-token-here"
@@ -1223,21 +1223,21 @@ Replace the "Upstream API Credentials" subsection:
 ```markdown
 ### Upstream API Credentials
 
-These are the credentials code-mcp uses to call the APIs behind the SDK.
+These are the credentials toolscript uses to call the APIs behind the SDK.
 
 **CLI `--auth` flag** (quick start):
 
 ```bash
 # Named: --auth name:ENV_VAR
-code-mcp run petstore=spec.yaml --auth petstore:MY_TOKEN
+toolscript run petstore=spec.yaml --auth petstore:MY_TOKEN
 
 # Unnamed (single-spec only): --auth ENV_VAR
-code-mcp run spec.yaml --auth MY_TOKEN
+toolscript run spec.yaml --auth MY_TOKEN
 ```
 
 The tool reads the value of the environment variable at startup. The secret never appears in the command itself.
 
-**Config file** (`code-mcp.toml`):
+**Config file** (`toolscript.toml`):
 
 ```toml
 [apis.petstore]
@@ -1268,9 +1268,9 @@ auth_env = "STRIPE_KEY"
 Run with a config file:
 
 ```bash
-code-mcp run --config code-mcp.toml
-# Or just have code-mcp.toml in the current directory:
-code-mcp run
+toolscript run --config toolscript.toml
+# Or just have toolscript.toml in the current directory:
+toolscript run
 ```
 
 **Per-request via `_meta.auth`** (overrides all, for hosted mode):
@@ -1298,7 +1298,7 @@ code-mcp run
 
 **Step 3: Update CLI Reference**
 
-Add `--auth` and `--config` to the `code-mcp run` table:
+Add `--auth` and `--config` to the `toolscript run` table:
 
 ```markdown
 | Flag               | Default | Description                                    |
@@ -1315,7 +1315,7 @@ Add `--auth` and `--config` to the `code-mcp run` table:
 | `--auth-jwks-uri`  | --      | Explicit JWKS URI override                     |
 ```
 
-Add note about auto-discovery: "If no specs and no `--config` are provided, `code-mcp run` looks for `code-mcp.toml` in the current directory."
+Add note about auto-discovery: "If no specs and no `--config` are provided, `toolscript run` looks for `toolscript.toml` in the current directory."
 
 **Step 4: Commit**
 
@@ -1338,7 +1338,7 @@ Add to `tests/full_roundtrip.rs`:
 ```rust
 #[tokio::test(flavor = "multi_thread")]
 async fn test_roundtrip_with_named_spec() {
-    use code_mcp::config::SpecInput;
+    use tool_script::config::SpecInput;
 
     let output_dir = tempfile::tempdir().unwrap();
     generate(

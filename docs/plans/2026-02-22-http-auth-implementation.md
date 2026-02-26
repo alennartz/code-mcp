@@ -852,7 +852,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-#[command(name = "code-mcp", about = "Generate MCP servers from OpenAPI specs")]
+#[command(name = "toolscript", about = "Generate MCP servers from OpenAPI specs")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Command,
@@ -946,7 +946,7 @@ This is the wiring task that connects the CLI flags, middleware, and well-known 
 In `src/main.rs`, add a helper function:
 
 ```rust
-use code_mcp::server::auth::{McpAuthConfig, JwtValidator, auth_middleware};
+use tool_script::server::auth::{McpAuthConfig, JwtValidator, auth_middleware};
 
 /// Build McpAuthConfig from CLI flags, if auth is configured.
 fn build_auth_config(
@@ -982,7 +982,7 @@ async fn serve(
     let handler = Arc::new(HttpHandler::new());
     let auth = load_auth_from_env(&manifest);
     let config = ExecutorConfig::default();
-    let server = CodeMcpServer::new(manifest, handler, auth, config);
+    let server = ToolScriptServer::new(manifest, handler, auth, config);
 
     match transport {
         "stdio" => serve_stdio(server).await,
@@ -996,7 +996,7 @@ async fn serve(
 
 ```rust
 async fn serve_http(
-    server: CodeMcpServer,
+    server: ToolScriptServer,
     port: u16,
     auth_config: Option<McpAuthConfig>,
 ) -> anyhow::Result<()> {
@@ -1015,18 +1015,18 @@ async fn serve_http(
     let server = Arc::new(server);
 
     let service: StreamableHttpService<
-        rmcp::handler::server::router::Router<Arc<CodeMcpServer>>,
+        rmcp::handler::server::router::Router<Arc<ToolScriptServer>>,
     > = StreamableHttpService::new(
         {
             let server = server.clone();
             move || {
                 let router = rmcp::handler::server::router::Router::new(server.clone())
-                    .with_tool(code_mcp::server::tools::list_apis_tool_arc())
-                    .with_tool(code_mcp::server::tools::list_functions_tool_arc())
-                    .with_tool(code_mcp::server::tools::get_function_docs_tool_arc())
-                    .with_tool(code_mcp::server::tools::search_docs_tool_arc())
-                    .with_tool(code_mcp::server::tools::get_schema_tool_arc())
-                    .with_tool(code_mcp::server::tools::execute_script_tool_arc());
+                    .with_tool(tool_script::server::tools::list_apis_tool_arc())
+                    .with_tool(tool_script::server::tools::list_functions_tool_arc())
+                    .with_tool(tool_script::server::tools::get_function_docs_tool_arc())
+                    .with_tool(tool_script::server::tools::search_docs_tool_arc())
+                    .with_tool(tool_script::server::tools::get_schema_tool_arc())
+                    .with_tool(tool_script::server::tools::execute_script_tool_arc());
                 Ok(router)
             }
         },
@@ -1142,7 +1142,7 @@ git commit -m "feat: wire auth middleware and well-known endpoint into HTTP tran
 - Modify: `src/server/tools.rs`
 - Test: `src/server/tools.rs` or `src/server/auth.rs` (inline tests)
 
-This modifies the `execute_script` tool handlers (both `CodeMcpServer` and `Arc<CodeMcpServer>` variants) to read `Meta` from the request context, extract `_meta.auth`, merge with env credentials, and pass the merged map to the executor.
+This modifies the `execute_script` tool handlers (both `ToolScriptServer` and `Arc<ToolScriptServer>` variants) to read `Meta` from the request context, extract `_meta.auth`, merge with env credentials, and pass the merged map to the executor.
 
 **Step 1: Write the failing test**
 
@@ -1212,7 +1212,7 @@ use crate::server::auth;
 
 async fn execute_script_async(
     params: Result<ExecuteScriptParams, serde_json::Error>,
-    server: &CodeMcpServer,
+    server: &ToolScriptServer,
     meta_auth: crate::runtime::http::AuthCredentialsMap,
 ) -> Result<CallToolResult, rmcp::ErrorData> {
     let params = match params {
@@ -1256,10 +1256,10 @@ async fn execute_script_async(
 Then update both `execute_script_tool()` and `execute_script_tool_arc()` closures to extract `Meta` from the `ToolCallContext` and parse it. The `ToolCallContext` has a `request_context` field with `meta`:
 
 ```rust
-pub fn execute_script_tool() -> ToolRoute<CodeMcpServer> {
+pub fn execute_script_tool() -> ToolRoute<ToolScriptServer> {
     ToolRoute::new_dyn(
         execute_script_tool_def(),
-        |mut context: ToolCallContext<'_, CodeMcpServer>| {
+        |mut context: ToolCallContext<'_, ToolScriptServer>| {
             let args = context.arguments.take().unwrap_or_default();
             let params: Result<ExecuteScriptParams, _> =
                 serde_json::from_value(serde_json::Value::Object(args));
@@ -1274,10 +1274,10 @@ pub fn execute_script_tool() -> ToolRoute<CodeMcpServer> {
     )
 }
 
-pub fn execute_script_tool_arc() -> ToolRoute<Arc<CodeMcpServer>> {
+pub fn execute_script_tool_arc() -> ToolRoute<Arc<ToolScriptServer>> {
     ToolRoute::new_dyn(
         execute_script_tool_def(),
-        |mut context: ToolCallContext<'_, Arc<CodeMcpServer>>| {
+        |mut context: ToolCallContext<'_, Arc<ToolScriptServer>>| {
             let args = context.arguments.take().unwrap_or_default();
             let params: Result<ExecuteScriptParams, _> =
                 serde_json::from_value(serde_json::Value::Object(args));
@@ -1349,7 +1349,7 @@ async fn test_well_known_endpoint_no_auth_required() {
 
     // We can't easily start the full server in-process for this test without
     // significant setup. Instead, test the well-known JSON generation directly.
-    let config = code_mcp::server::auth::McpAuthConfig {
+    let config = tool_script::server::auth::McpAuthConfig {
         authority: "https://auth.example.com".to_string(),
         audience: "https://mcp.example.com".to_string(),
         jwks_uri_override: None,
@@ -1370,13 +1370,13 @@ async fn test_well_known_endpoint_no_auth_required() {
 #[test]
 fn test_auth_middleware_rejects_no_header() {
     // Test the extract_bearer_token helper
-    let result = code_mcp::server::auth::extract_bearer_token("");
+    let result = tool_script::server::auth::extract_bearer_token("");
     assert!(result.is_err());
 }
 
 #[test]
 fn test_auth_middleware_rejects_wrong_scheme() {
-    let result = code_mcp::server::auth::extract_bearer_token("Basic abc123");
+    let result = tool_script::server::auth::extract_bearer_token("Basic abc123");
     assert!(result.is_err());
 }
 
@@ -1387,8 +1387,8 @@ async fn test_meta_auth_roundtrip() {
     // 2. Merge with env credentials
     // 3. Verify the merged result
 
-    use code_mcp::runtime::http::{AuthCredentials, AuthCredentialsMap};
-    use code_mcp::server::auth::{merge_credentials, parse_meta_auth};
+    use tool_script::runtime::http::{AuthCredentials, AuthCredentialsMap};
+    use tool_script::server::auth::{merge_credentials, parse_meta_auth};
 
     // Simulate env credentials (server-side defaults)
     let mut env_creds = AuthCredentialsMap::new();
@@ -1447,7 +1447,7 @@ git commit -m "test: add integration tests for HTTP auth and _meta.auth credenti
 ### Task 10: Remove Design Doc auth Field from execute_script Schema
 
 **Files:**
-- Modify: `docs/plans/2026-02-21-code-mcp-design.md`
+- Modify: `docs/plans/2026-02-21-toolscript-design.md`
 
 The original design doc describes an `auth` field on `execute_script` tool arguments (visible to the LLM). This has been superseded by `_meta.auth` (invisible to LLM). Update the design doc to reflect the new approach.
 
@@ -1481,7 +1481,7 @@ And update the paragraph to say:
 **Step 2: Commit**
 
 ```bash
-git add docs/plans/2026-02-21-code-mcp-design.md
+git add docs/plans/2026-02-21-toolscript-design.md
 git commit -m "docs: update design doc — replace auth tool arg with _meta.auth"
 ```
 
@@ -1498,4 +1498,4 @@ git commit -m "docs: update design doc — replace auth tool arg with _meta.auth
 | `src/main.rs` | Modify — wire middleware, well-known endpoint, pass auth config | 7 |
 | `src/server/tools.rs` | Modify — extract `_meta.auth` in `execute_script` handlers | 8 |
 | `tests/http_auth_test.rs` | Create — integration tests | 9 |
-| `docs/plans/2026-02-21-code-mcp-design.md` | Modify — update `execute_script` auth docs | 10 |
+| `docs/plans/2026-02-21-toolscript-design.md` | Modify — update `execute_script` auth docs | 10 |

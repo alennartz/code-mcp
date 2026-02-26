@@ -2,14 +2,14 @@
 
 ## Overview
 
-A full-stack end-to-end test harness for code-mcp that exercises the entire pipeline:
-a real HTTP API (FastAPI) serving an OpenAPI spec, `code-mcp run` pointed at that
+A full-stack end-to-end test harness for toolscript that exercises the entire pipeline:
+a real HTTP API (FastAPI) serving an OpenAPI spec, `toolscript run` pointed at that
 spec, and a Python MCP client running tests against the resulting MCP server.
 
 ## Architecture
 
 ```
-Test HTTP API (FastAPI)  <──HTTP──>  code-mcp (MCP server)  <──stdio/HTTP──>  MCP Client (pytest)
+Test HTTP API (FastAPI)  <──HTTP──>  toolscript (MCP server)  <──stdio/HTTP──>  MCP Client (pytest)
        │                                    │                                       │
   Serves endpoints              Generates SDK from spec              Invokes tools & scripts
   + OpenAPI spec                Executes Luau scripts                Asserts correct output
@@ -19,7 +19,7 @@ Test HTTP API (FastAPI)  <──HTTP──>  code-mcp (MCP server)  <──stdio
 ## Approach
 
 Single Python pytest package in `e2e/`. Pytest session-scoped fixtures manage all
-process lifecycle: start the test API, build and spawn code-mcp, connect the MCP
+process lifecycle: start the test API, build and spawn toolscript, connect the MCP
 client. No Docker or shell scripts required.
 
 ## Test API (FastAPI)
@@ -76,9 +76,9 @@ e2e/
 ### Session-scoped
 
 1. **`test_api_server`** — Starts FastAPI on a random port via uvicorn. Yields base URL. Shuts down on teardown.
-2. **`code_mcp_binary`** — Runs `cargo build --release` once per session. Returns binary path.
-3. **`mcp_stdio_session`** — Spawns `code-mcp run <spec_url>` with auth env vars, connects Python MCP SDK over stdio. Yields `ClientSession`.
-4. **`mcp_http_session`** — Spawns `code-mcp run <spec_url> --transport http --port <random>`, connects via streamable HTTP. Yields `ClientSession`.
+2. **`tool_script_binary`** — Runs `cargo build --release` once per session. Returns binary path.
+3. **`mcp_stdio_session`** — Spawns `toolscript run <spec_url>` with auth env vars, connects Python MCP SDK over stdio. Yields `ClientSession`.
+4. **`mcp_http_session`** — Spawns `toolscript run <spec_url> --transport http --port <random>`, connects via streamable HTTP. Yields `ClientSession`.
 
 ### Function-scoped
 
@@ -91,17 +91,17 @@ e2e/
 
 ## Auth Flow
 
-### Layer 1: Upstream API (code-mcp → test API)
+### Layer 1: Upstream API (toolscript → test API)
 
-- **Env vars:** Fixture sets `TEST_API_BEARER_TOKEN=test-secret-123` and `TEST_API_API_KEY=test-key-456` when spawning code-mcp.
+- **Env vars:** Fixture sets `TEST_API_BEARER_TOKEN=test-secret-123` and `TEST_API_API_KEY=test-key-456` when spawning toolscript.
 - **`_meta.auth`:** Some tests pass credentials in the `execute_script` tool arguments to test the credential-merging flow.
 
-### Layer 2: MCP transport (MCP client → code-mcp HTTP)
+### Layer 2: MCP transport (MCP client → toolscript HTTP)
 
 - Only applies to HTTP transport tests.
 - Test JWT issuer signs tokens with a known key pair.
 - JWKS endpoint served by a fixture.
-- code-mcp started with `--auth-authority <issuer_url> --auth-audience test-audience --auth-jwks-uri <jwks_url>`.
+- toolscript started with `--auth-authority <issuer_url> --auth-audience test-audience --auth-jwks-uri <jwks_url>`.
 - MCP HTTP client includes the signed JWT as Bearer token.
 - stdio tests skip this layer entirely.
 
@@ -163,7 +163,7 @@ e2e/
 | `test_max_api_calls_exceeded`  | Script stopped at API call limit                  |
 | `test_sandbox_no_file_io`      | `io.open()` blocked by sandbox                    |
 
-These use a separate code-mcp instance with short limits (`--timeout 2 --max-api-calls 3`).
+These use a separate toolscript instance with short limits (`--timeout 2 --max-api-calls 3`).
 
 ## Dependencies
 
@@ -181,7 +181,7 @@ httpx            # For calling test API reset endpoint
 ## Running
 
 ```bash
-# Build code-mcp first
+# Build toolscript first
 cargo build --release
 
 # Run e2e tests
