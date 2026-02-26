@@ -182,15 +182,6 @@ pub fn search_docs_impl(server: &ToolScriptServer, query: &str) -> String {
     serde_json::to_string_pretty(&results).unwrap_or_else(|_| "[]".to_string())
 }
 
-/// Implementation for `get_schema`: returns the full Luau type annotation for a schema.
-pub fn get_schema_impl(server: &ToolScriptServer, name: &str) -> Result<String, String> {
-    server
-        .schema_cache
-        .get(name)
-        .cloned()
-        .ok_or_else(|| format!("Schema '{name}' not found"))
-}
-
 // ---- Tool route builders (wired into MCP) ----
 
 fn make_tool(name: &str, description: &str, schema: serde_json::Value) -> Tool {
@@ -298,37 +289,6 @@ pub fn search_docs_tool() -> ToolRoute<ToolScriptServer> {
                     let results = search_docs_impl(context.service, &p.query);
                     CallToolResult::success(vec![Content::text(results)])
                 }
-                Err(e) => {
-                    CallToolResult::error(vec![Content::text(format!("Invalid params: {e}"))])
-                }
-            };
-            std::future::ready(Ok(result)).boxed()
-        },
-    )
-}
-
-pub fn get_schema_tool() -> ToolRoute<ToolScriptServer> {
-    ToolRoute::new_dyn(
-        make_tool(
-            "get_schema",
-            "Get the full Luau type annotation documentation for a schema (class/type)",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string", "description": "Schema name" },
-                },
-                "required": ["name"],
-            }),
-        ),
-        |mut context: ToolCallContext<'_, ToolScriptServer>| {
-            let args = context.arguments.take().unwrap_or_default();
-            let params: Result<NameParam, _> =
-                serde_json::from_value(serde_json::Value::Object(args));
-            let result = match params {
-                Ok(p) => match get_schema_impl(context.service, &p.name) {
-                    Ok(docs) => CallToolResult::success(vec![Content::text(docs)]),
-                    Err(e) => CallToolResult::error(vec![Content::text(e)]),
-                },
                 Err(e) => {
                     CallToolResult::error(vec![Content::text(format!("Invalid params: {e}"))])
                 }
@@ -520,37 +480,6 @@ pub fn search_docs_tool_arc() -> ToolRoute<Arc<ToolScriptServer>> {
                     let results = search_docs_impl(context.service, &p.query);
                     CallToolResult::success(vec![Content::text(results)])
                 }
-                Err(e) => {
-                    CallToolResult::error(vec![Content::text(format!("Invalid params: {e}"))])
-                }
-            };
-            std::future::ready(Ok(result)).boxed()
-        },
-    )
-}
-
-pub fn get_schema_tool_arc() -> ToolRoute<Arc<ToolScriptServer>> {
-    ToolRoute::new_dyn(
-        make_tool(
-            "get_schema",
-            "Get the full Luau type annotation documentation for a schema (class/type)",
-            serde_json::json!({
-                "type": "object",
-                "properties": {
-                    "name": { "type": "string", "description": "Schema name" },
-                },
-                "required": ["name"],
-            }),
-        ),
-        |mut context: ToolCallContext<'_, Arc<ToolScriptServer>>| {
-            let args = context.arguments.take().unwrap_or_default();
-            let params: Result<NameParam, _> =
-                serde_json::from_value(serde_json::Value::Object(args));
-            let result = match params {
-                Ok(p) => match get_schema_impl(context.service, &p.name) {
-                    Ok(docs) => CallToolResult::success(vec![Content::text(docs)]),
-                    Err(e) => CallToolResult::error(vec![Content::text(e)]),
-                },
                 Err(e) => {
                     CallToolResult::error(vec![Content::text(format!("Invalid params: {e}"))])
                 }

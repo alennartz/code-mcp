@@ -13,7 +13,7 @@ use rmcp::model::{
 };
 use rmcp::service::{RequestContext, RoleServer};
 
-use crate::codegen::annotations::{render_function_docs, render_schema_annotation};
+use crate::codegen::annotations::render_function_docs;
 use crate::codegen::manifest::Manifest;
 use crate::runtime::executor::{ExecutorConfig, OutputConfig, ScriptExecutor};
 use crate::runtime::http::{AuthCredentialsMap, HttpHandler};
@@ -27,8 +27,6 @@ pub struct ToolScriptServer {
     pub executor: ScriptExecutor,
     /// Pre-rendered function annotations indexed by function name.
     pub annotation_cache: HashMap<String, String>,
-    /// Pre-rendered schema annotations indexed by schema name.
-    pub schema_cache: HashMap<String, String>,
     /// Authentication credentials loaded from environment.
     pub auth: AuthCredentialsMap,
 }
@@ -49,19 +47,12 @@ impl ToolScriptServer {
             .map(|f| (f.name.clone(), render_function_docs(f, &manifest.schemas)))
             .collect();
 
-        let schema_cache: HashMap<String, String> = manifest
-            .schemas
-            .iter()
-            .map(|s| (s.name.clone(), render_schema_annotation(s)))
-            .collect();
-
         let executor = ScriptExecutor::new(manifest.clone(), handler, config, output_config);
 
         Self {
             manifest,
             executor,
             annotation_cache,
-            schema_cache,
             auth,
         }
     }
@@ -126,7 +117,6 @@ impl ToolScriptServer {
             .with_tool(tools::list_functions_tool())
             .with_tool(tools::get_function_docs_tool())
             .with_tool(tools::search_docs_tool())
-            .with_tool(tools::get_schema_tool())
             .with_tool(tools::execute_script_tool())
     }
 }
@@ -154,12 +144,7 @@ impl ServerHandler for ToolScriptServer {
         _context: RequestContext<RoleServer>,
     ) -> impl std::future::Future<Output = Result<ReadResourceResult, rmcp::ErrorData>> + Send + '_
     {
-        let result = resources::read_resource(
-            &request.uri,
-            &self.manifest,
-            &self.annotation_cache,
-            &self.schema_cache,
-        );
+        let result = resources::read_resource(&request.uri, &self.manifest, &self.annotation_cache);
         std::future::ready(result)
     }
 }
@@ -370,24 +355,6 @@ mod tests {
         let items = json.as_array().unwrap();
         // Should find functions and schemas that mention "pet"
         assert!(!items.is_empty());
-    }
-
-    #[test]
-    fn test_get_schema_found() {
-        let server = test_server();
-        let result = tools::get_schema_impl(&server, "Pet");
-        assert!(result.is_ok());
-        let docs = result.unwrap();
-        assert!(docs.contains("export type Pet = {"));
-        assert!(docs.contains("id: string,"));
-        assert!(docs.contains("name: string,"));
-    }
-
-    #[test]
-    fn test_get_schema_not_found() {
-        let server = test_server();
-        let result = tools::get_schema_impl(&server, "Nonexistent");
-        assert!(result.is_err());
     }
 
     #[test]

@@ -107,7 +107,6 @@ pub fn read_resource(
     uri: &str,
     manifest: &Manifest,
     annotation_cache: &HashMap<String, String>,
-    schema_cache: &HashMap<String, String>,
 ) -> Result<ReadResourceResult, rmcp::ErrorData> {
     // Parse the URI: sdk://{api_name}/{path...}
     let stripped = uri
@@ -182,14 +181,21 @@ pub fn read_resource(
         "schemas" => {
             if let Some(schema_name) = parts.get(2) {
                 // Individual schema
-                let annotation = schema_cache.get(*schema_name).ok_or_else(|| {
-                    rmcp::ErrorData::invalid_params(
-                        format!("Schema '{schema_name}' not found"),
-                        None,
-                    )
-                })?;
+                let schema = manifest
+                    .schemas
+                    .iter()
+                    .find(|s| s.name == *schema_name)
+                    .ok_or_else(|| {
+                        rmcp::ErrorData::invalid_params(
+                            format!("Schema '{schema_name}' not found"),
+                            None,
+                        )
+                    })?;
                 Ok(ReadResourceResult {
-                    contents: vec![ResourceContents::text(annotation.clone(), uri)],
+                    contents: vec![ResourceContents::text(
+                        render_schema_annotation(schema),
+                        uri,
+                    )],
                 })
             } else {
                 // All schemas
@@ -214,21 +220,15 @@ pub fn read_resource(
 mod tests {
     #![allow(clippy::unwrap_used, clippy::expect_used)]
     use super::*;
-    use crate::codegen::annotations::{render_function_annotation, render_schema_annotation};
+    use crate::codegen::annotations::render_function_annotation;
     use crate::server::tests::test_manifest;
 
-    fn build_caches(manifest: &Manifest) -> (HashMap<String, String>, HashMap<String, String>) {
-        let annotation_cache: HashMap<String, String> = manifest
+    fn build_annotation_cache(manifest: &Manifest) -> HashMap<String, String> {
+        manifest
             .functions
             .iter()
             .map(|f| (f.name.clone(), render_function_annotation(f)))
-            .collect();
-        let schema_cache: HashMap<String, String> = manifest
-            .schemas
-            .iter()
-            .map(|s| (s.name.clone(), render_schema_annotation(s)))
-            .collect();
-        (annotation_cache, schema_cache)
+            .collect()
     }
 
     #[test]
@@ -256,8 +256,8 @@ mod tests {
     #[test]
     fn test_read_overview_resource() {
         let manifest = test_manifest();
-        let (ac, sc) = build_caches(&manifest);
-        let result = read_resource("sdk://petstore/overview", &manifest, &ac, &sc).unwrap();
+        let ac = build_annotation_cache(&manifest);
+        let result = read_resource("sdk://petstore/overview", &manifest, &ac).unwrap();
 
         assert_eq!(result.contents.len(), 1);
         if let ResourceContents::TextResourceContents { text, .. } = &result.contents[0] {
@@ -272,9 +272,8 @@ mod tests {
     #[test]
     fn test_read_function_resource() {
         let manifest = test_manifest();
-        let (ac, sc) = build_caches(&manifest);
-        let result =
-            read_resource("sdk://petstore/functions/list_pets", &manifest, &ac, &sc).unwrap();
+        let ac = build_annotation_cache(&manifest);
+        let result = read_resource("sdk://petstore/functions/list_pets", &manifest, &ac).unwrap();
 
         assert_eq!(result.contents.len(), 1);
         if let ResourceContents::TextResourceContents { text, .. } = &result.contents[0] {
@@ -288,8 +287,8 @@ mod tests {
     #[test]
     fn test_read_schema_resource() {
         let manifest = test_manifest();
-        let (ac, sc) = build_caches(&manifest);
-        let result = read_resource("sdk://petstore/schemas/Pet", &manifest, &ac, &sc).unwrap();
+        let ac = build_annotation_cache(&manifest);
+        let result = read_resource("sdk://petstore/schemas/Pet", &manifest, &ac).unwrap();
 
         assert_eq!(result.contents.len(), 1);
         if let ResourceContents::TextResourceContents { text, .. } = &result.contents[0] {

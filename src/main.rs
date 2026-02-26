@@ -398,7 +398,6 @@ async fn serve_http(
                     .with_tool(toolscript::server::tools::list_functions_tool_arc())
                     .with_tool(toolscript::server::tools::get_function_docs_tool_arc())
                     .with_tool(toolscript::server::tools::search_docs_tool_arc())
-                    .with_tool(toolscript::server::tools::get_schema_tool_arc())
                     .with_tool(toolscript::server::tools::execute_script_tool_arc());
                 Ok(router)
             }
