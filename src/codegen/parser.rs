@@ -619,14 +619,55 @@ fn schema_kind_to_field_type(kind: &SchemaKind) -> FieldType {
             }
         }
         SchemaKind::Type(Type::Object(obj)) => {
-            if obj.properties.is_empty()
-                && let Some(ap) = &obj.additional_properties
-            {
-                return additional_properties_to_map(ap);
+            if obj.properties.is_empty() {
+                if let Some(ap) = &obj.additional_properties {
+                    return additional_properties_to_map(ap);
+                }
+                return FieldType::Map {
+                    value: Box::new(FieldType::String),
+                };
             }
-            FieldType::Object {
-                schema: "unknown".to_string(),
-            }
+            // Has properties — build inline object
+            let required_set: std::collections::HashSet<&str> =
+                obj.required.iter().map(String::as_str).collect();
+            let fields: Vec<FieldDef> = obj
+                .properties
+                .iter()
+                .map(|(name, schema_ref)| match schema_ref {
+                    ReferenceOr::Reference { reference } => {
+                        let schema_name = reference
+                            .strip_prefix("#/components/schemas/")
+                            .unwrap_or(reference);
+                        FieldDef {
+                            name: name.clone(),
+                            field_type: FieldType::Object {
+                                schema: schema_name.to_string(),
+                            },
+                            required: required_set.contains(name.as_str()),
+                            description: None,
+                            enum_values: None,
+                            nullable: false,
+                            format: None,
+                        }
+                    }
+                    ReferenceOr::Item(schema) => {
+                        let field_type = schema_kind_to_field_type(&schema.schema_kind);
+                        let enum_values = extract_field_enum_values(&schema.schema_kind);
+                        let nullable = schema.schema_data.nullable;
+                        let format = extract_format(&schema.schema_kind);
+                        FieldDef {
+                            name: name.clone(),
+                            field_type,
+                            required: required_set.contains(name.as_str()),
+                            description: schema.schema_data.description.clone(),
+                            enum_values,
+                            nullable,
+                            format,
+                        }
+                    }
+                })
+                .collect();
+            FieldType::InlineObject { fields }
         }
         _ => FieldType::String, // Fallback for String, Any, OneOf, etc.
     }
@@ -650,11 +691,8 @@ fn additional_properties_to_map(ap: &openapiv3::AdditionalProperties) -> FieldTy
                 value: Box::new(value_type),
             }
         }
-        openapiv3::AdditionalProperties::Any(true) => FieldType::Map {
+        openapiv3::AdditionalProperties::Any(true | false) => FieldType::Map {
             value: Box::new(FieldType::String),
-        },
-        openapiv3::AdditionalProperties::Any(false) => FieldType::Object {
-            schema: "unknown".to_string(),
         },
     }
 }
@@ -1624,5 +1662,62 @@ components:
             .expect("id param missing");
 
         assert_eq!(id_param.format.as_deref(), Some("uuid"));
+    }
+
+    #[test]
+    fn test_inline_object_parsed_as_inline_object() {
+        let spec_json = serde_json::json!({
+            "openapi": "3.0.0",
+            "info": { "title": "Test", "version": "1.0" },
+            "servers": [{ "url": "https://api.example.com" }],
+            "paths": {},
+            "components": {
+                "schemas": {
+                    "Config": {
+                        "type": "object",
+                        "required": ["settings"],
+                        "properties": {
+                            "settings": {
+                                "type": "object",
+                                "required": ["timeout"],
+                                "properties": {
+                                    "timeout": { "type": "integer" },
+                                    "retries": { "type": "integer" }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        let spec: openapiv3::OpenAPI = serde_json::from_value(spec_json).unwrap();
+        let manifest = spec_to_manifest(&spec, "test").unwrap();
+        let config_schema = manifest
+            .schemas
+            .iter()
+            .find(|s| s.name == "Config")
+            .unwrap();
+        let settings_field = config_schema
+            .fields
+            .iter()
+            .find(|f| f.name == "settings")
+            .unwrap();
+        match &settings_field.field_type {
+            FieldType::InlineObject { fields } => {
+                assert!(
+                    fields.iter().any(|f| f.name == "timeout"),
+                    "Missing timeout field"
+                );
+                assert!(
+                    fields.iter().any(|f| f.name == "retries"),
+                    "Missing retries field"
+                );
+                let timeout = fields.iter().find(|f| f.name == "timeout").unwrap();
+                assert!(timeout.required, "timeout should be required");
+                let retries = fields.iter().find(|f| f.name == "retries").unwrap();
+                assert!(!retries.required, "retries should not be required");
+            }
+            other => panic!("Expected InlineObject, got {other:?}"),
+        }
     }
 }
