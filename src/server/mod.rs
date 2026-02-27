@@ -328,6 +328,7 @@ mod tests {
                         luau_type: "string".to_string(),
                         required: true,
                         description: Some("File path".to_string()),
+                        ..Default::default()
                     }],
                     schemas: vec![],
                     output_schemas: vec![],

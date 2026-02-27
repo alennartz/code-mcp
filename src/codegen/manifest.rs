@@ -124,17 +124,26 @@ pub struct FieldDef {
 }
 
 /// The type of a schema field, including compound types.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum FieldType {
+    #[default]
     String,
     Integer,
     Number,
     Boolean,
-    Array { items: Box<Self> },
-    Object { schema: String },
-    InlineObject { fields: Vec<FieldDef> },
-    Map { value: Box<Self> },
+    Array {
+        items: Box<Self>,
+    },
+    Object {
+        schema: String,
+    },
+    InlineObject {
+        fields: Vec<FieldDef>,
+    },
+    Map {
+        value: Box<Self>,
+    },
 }
 
 /// An upstream MCP server discovered at runtime, containing its tool definitions.
@@ -159,12 +168,16 @@ pub struct McpToolDef {
 }
 
 /// A parameter definition for an MCP tool, using Luau type names.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct McpParamDef {
     pub name: String,
     pub luau_type: String,
     pub required: bool,
     pub description: Option<String>,
+    /// The computed [`FieldType`] for this parameter, used for transitive schema
+    /// resolution. Skipped during serialization (defaults to `FieldType::String`).
+    #[serde(skip)]
+    pub field_type: FieldType,
 }
 
 #[cfg(test)]
@@ -590,6 +603,7 @@ mod tests {
                     luau_type: "string".to_string(),
                     required: true,
                     description: Some("File path to read".to_string()),
+                    ..Default::default()
                 }],
                 schemas: vec![],
                 output_schemas: vec![],

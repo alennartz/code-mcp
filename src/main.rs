@@ -73,6 +73,13 @@ async fn main() -> anyhow::Result<()> {
             let mut manifest = load_manifest(&dir)?;
             manifest.mcp_servers = mcp_server_entries;
 
+            if manifest.apis.is_empty() && manifest.mcp_servers.is_empty() {
+                anyhow::bail!(
+                    "no APIs or MCP servers configured. \
+                     Add [apis] or [mcp_servers] to toolscript.toml, or pass specs/--mcp flags"
+                );
+            }
+
             let api_names: Vec<String> = manifest.apis.iter().map(|a| a.name.clone()).collect();
             let auth_args: Vec<_> = api_auth
                 .iter()
@@ -116,29 +123,34 @@ async fn main() -> anyhow::Result<()> {
         } => {
             let mcp_auth = build_mcp_auth_config(auth_authority, auth_audience, auth_jwks_uri)?;
 
-            // Resolve spec inputs. If no specs/config but MCP servers exist,
-            // try auto-discovering toolscript.toml for config (including its
-            // [mcp_servers]), but allow empty specs when MCP servers are present.
-            let (spec_inputs, config_obj) =
-                if specs.is_empty() && config.is_none() && !cli_mcp.is_empty() {
-                    let default_path = Path::new("toolscript.toml");
-                    if default_path.exists() {
-                        let cfg = load_config(default_path)?;
-                        let inputs: Vec<SpecInput> = cfg
-                            .apis
-                            .iter()
-                            .map(|(name, entry)| SpecInput {
-                                name: Some(name.clone()),
-                                source: entry.spec.clone(),
-                            })
-                            .collect();
-                        (inputs, Some(cfg))
-                    } else {
-                        (vec![], None)
-                    }
+            // Resolve spec inputs. When no explicit specs or --config are given,
+            // auto-discover toolscript.toml. This allows TOML files with only
+            // [mcp_servers] (no [apis]) to work. If no TOML either, fall back
+            // to MCP-only mode when CLI --mcp flags are present.
+            let (spec_inputs, config_obj) = if specs.is_empty() && config.is_none() {
+                let default_path = Path::new("toolscript.toml");
+                if default_path.exists() {
+                    let cfg = load_config(default_path)?;
+                    let inputs: Vec<SpecInput> = cfg
+                        .apis
+                        .iter()
+                        .map(|(name, entry)| SpecInput {
+                            name: Some(name.clone()),
+                            source: entry.spec.clone(),
+                        })
+                        .collect();
+                    (inputs, Some(cfg))
+                } else if !cli_mcp.is_empty() {
+                    // No TOML, but CLI --mcp flags → MCP-only mode
+                    (vec![], None)
                 } else {
-                    resolve_run_inputs(&specs, config.as_deref())?
-                };
+                    anyhow::bail!(
+                        "no specs provided. Pass spec paths/URLs, use --config, or create toolscript.toml"
+                    );
+                }
+            } else {
+                resolve_run_inputs(&specs, config.as_deref())?
+            };
 
             // Resolve MCP configs: merge TOML [mcp_servers] with CLI --mcp flags
             let mcp_configs = resolve_mcp_configs(config_obj.as_ref(), &cli_mcp)?;
@@ -160,6 +172,13 @@ async fn main() -> anyhow::Result<()> {
                 m.mcp_servers = mcp_server_entries;
                 m
             };
+
+            if manifest.apis.is_empty() && manifest.mcp_servers.is_empty() {
+                anyhow::bail!(
+                    "no APIs or MCP servers configured. \
+                     Add [apis] or [mcp_servers] to toolscript.toml, or pass specs/--mcp flags"
+                );
+            }
 
             let api_names: Vec<String> = manifest.apis.iter().map(|a| a.name.clone()).collect();
             // Start with config auth, then layer CLI --auth on top (CLI wins per-key)

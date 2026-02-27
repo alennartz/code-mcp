@@ -234,27 +234,59 @@ pub fn render_mcp_tool_annotation(tool: &McpToolDef) -> String {
     lines.join("\n")
 }
 
-/// Render a complete documentation block for an MCP tool: function signature + all schemas.
+/// Render a complete documentation block for an MCP tool: function signature
+/// plus transitively referenced schemas.
 ///
-/// Like [`render_mcp_tool_annotation`] but appends all schemas from `tool.schemas` and
-/// `tool.output_schemas`, using [`render_schema_annotation`] for each.
+/// Like [`render_mcp_tool_annotation`] but uses transitive `$ref` resolution
+/// (the same algorithm as [`render_function_docs`]) to include only the schemas
+/// actually referenced by the tool's parameters, rather than dumping all schemas.
 pub fn render_mcp_tool_docs(tool: &McpToolDef) -> String {
     let mut output = render_mcp_tool_annotation(tool);
 
-    for schema in &tool.schemas {
-        output.push_str("\n\n");
-        output.push_str(&render_schema_annotation(schema));
+    // Build schema lookup from both schemas and output_schemas
+    let all_schemas: Vec<&SchemaDef> = tool
+        .schemas
+        .iter()
+        .chain(tool.output_schemas.iter())
+        .collect();
+    let schema_map: std::collections::HashMap<&str, &SchemaDef> =
+        all_schemas.iter().map(|s| (s.name.as_str(), *s)).collect();
+
+    // Collect direct refs from param field_types
+    let mut needed = Vec::new();
+    for param in &tool.params {
+        collect_type_refs(&param.field_type, &mut needed);
     }
-    for schema in &tool.output_schemas {
-        output.push_str("\n\n");
-        output.push_str(&render_schema_annotation(schema));
+
+    // Transitive walk (same algorithm as render_function_docs)
+    let mut resolved: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut queue = needed;
+    while let Some(name) = queue.pop() {
+        if !resolved.insert(name.clone()) {
+            continue;
+        }
+        if let Some(schema) = schema_map.get(name.as_str()) {
+            for field in &schema.fields {
+                collect_type_refs(&field.field_type, &mut queue);
+            }
+        }
+    }
+
+    // Render in sorted order
+    let mut sorted: Vec<&str> = resolved.iter().map(String::as_str).collect();
+    sorted.sort_unstable();
+    for name in sorted {
+        if let Some(schema) = schema_map.get(name) {
+            output.push_str("\n\n");
+            output.push_str(&render_schema_annotation(schema));
+        }
     }
 
     output
 }
 
 /// Collect named type references from a `FieldType` (for transitive schema resolution).
-fn collect_type_refs(field_type: &FieldType, refs: &mut Vec<String>) {
+pub(crate) fn collect_type_refs(field_type: &FieldType, refs: &mut Vec<String>) {
     match field_type {
         FieldType::Object { schema } => refs.push(schema.clone()),
         FieldType::Array { items } => collect_type_refs(items, refs),
@@ -1302,12 +1334,14 @@ mod tests {
                     luau_type: "string".to_string(),
                     required: true,
                     description: Some("File path to read".to_string()),
+                    ..Default::default()
                 },
                 McpParamDef {
                     name: "encoding".to_string(),
                     luau_type: "string".to_string(),
                     required: false,
                     description: Some("File encoding".to_string()),
+                    ..Default::default()
                 },
             ],
             schemas: vec![],
@@ -1377,6 +1411,9 @@ mod tests {
                 luau_type: "UserInput".to_string(),
                 required: true,
                 description: None,
+                field_type: FieldType::Object {
+                    schema: "UserInput".to_string(),
+                },
             }],
             schemas: vec![SchemaDef {
                 name: "UserInput".to_string(),
@@ -1401,6 +1438,123 @@ mod tests {
         assert!(
             output.contains("export type UserInput"),
             "Missing schema. Got:\n{output}"
+        );
+    }
+
+    #[test]
+    fn test_render_mcp_tool_docs_transitive_refs() {
+        // A → B → C chain: only referenced schemas should appear
+        let tool = McpToolDef {
+            name: "create".to_string(),
+            server: "svc".to_string(),
+            description: None,
+            params: vec![McpParamDef {
+                name: "input".to_string(),
+                luau_type: "A".to_string(),
+                required: true,
+                description: None,
+                field_type: FieldType::Object {
+                    schema: "A".to_string(),
+                },
+            }],
+            schemas: vec![
+                SchemaDef {
+                    name: "A".to_string(),
+                    description: None,
+                    fields: vec![FieldDef {
+                        name: "b_ref".to_string(),
+                        field_type: FieldType::Object {
+                            schema: "B".to_string(),
+                        },
+                        required: true,
+                        description: None,
+                        enum_values: None,
+                        nullable: false,
+                        format: None,
+                    }],
+                },
+                SchemaDef {
+                    name: "B".to_string(),
+                    description: None,
+                    fields: vec![FieldDef {
+                        name: "c_ref".to_string(),
+                        field_type: FieldType::Object {
+                            schema: "C".to_string(),
+                        },
+                        required: true,
+                        description: None,
+                        enum_values: None,
+                        nullable: false,
+                        format: None,
+                    }],
+                },
+                SchemaDef {
+                    name: "C".to_string(),
+                    description: None,
+                    fields: vec![FieldDef {
+                        name: "value".to_string(),
+                        field_type: FieldType::String,
+                        required: true,
+                        description: None,
+                        enum_values: None,
+                        nullable: false,
+                        format: None,
+                    }],
+                },
+                // This schema should NOT appear (not referenced)
+                SchemaDef {
+                    name: "Unused".to_string(),
+                    description: None,
+                    fields: vec![],
+                },
+            ],
+            output_schemas: vec![],
+        };
+
+        let output = render_mcp_tool_docs(&tool);
+        assert!(
+            output.contains("export type A"),
+            "Missing A schema. Got:\n{output}"
+        );
+        assert!(
+            output.contains("export type B"),
+            "Missing B schema. Got:\n{output}"
+        );
+        assert!(
+            output.contains("export type C"),
+            "Missing C schema. Got:\n{output}"
+        );
+        assert!(
+            !output.contains("export type Unused"),
+            "Unused schema should NOT appear. Got:\n{output}"
+        );
+    }
+
+    #[test]
+    fn test_render_mcp_tool_docs_no_field_type_no_schemas() {
+        // When params have default FieldType::String, no schemas should be emitted
+        let tool = McpToolDef {
+            name: "echo".to_string(),
+            server: "test".to_string(),
+            description: None,
+            params: vec![McpParamDef {
+                name: "text".to_string(),
+                luau_type: "string".to_string(),
+                required: true,
+                description: None,
+                ..Default::default()
+            }],
+            schemas: vec![SchemaDef {
+                name: "SomeUnused".to_string(),
+                description: None,
+                fields: vec![],
+            }],
+            output_schemas: vec![],
+        };
+        let output = render_mcp_tool_docs(&tool);
+        assert!(
+            !output.contains("export type"),
+            "Should not include unreferenced schemas. Got:\n{output}"
         );
     }
 }

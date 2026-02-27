@@ -710,7 +710,7 @@ spec = "petstore.yaml"
         let config = load_config(tmpfile.path()).unwrap();
         let output = config.output.unwrap();
         assert_eq!(output.dir.as_deref(), Some("/tmp/my-output"));
-        assert_eq!(output.max_bytes, Some(1048576));
+        assert_eq!(output.max_bytes, Some(1_048_576));
         assert_eq!(output.enabled, Some(false));
     }
 

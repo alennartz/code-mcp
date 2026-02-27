@@ -45,6 +45,7 @@ pub fn json_schema_to_params(schema: &Value) -> Vec<McpParamDef> {
             let type_str = prop.get("type").and_then(Value::as_str).unwrap_or("any");
             let items = prop.get("items");
             let luau_type = json_schema_type_to_luau(type_str, items);
+            let field_type = json_schema_prop_to_field_type(prop);
             let description = prop
                 .get("description")
                 .and_then(Value::as_str)
@@ -55,6 +56,7 @@ pub fn json_schema_to_params(schema: &Value) -> Vec<McpParamDef> {
                 luau_type,
                 required: required_set.contains(name.as_str()),
                 description,
+                field_type,
             }
         })
         .collect();

@@ -27,6 +27,7 @@ fn mcp_only_manifest() -> Manifest {
                         luau_type: "string".to_string(),
                         required: true,
                         description: Some("File path to read".to_string()),
+                        ..Default::default()
                     }],
                     schemas: vec![],
                     output_schemas: vec![],
@@ -41,12 +42,14 @@ fn mcp_only_manifest() -> Manifest {
                             luau_type: "string".to_string(),
                             required: true,
                             description: None,
+                            ..Default::default()
                         },
                         McpParamDef {
                             name: "content".to_string(),
                             luau_type: "string".to_string(),
                             required: true,
                             description: None,
+                            ..Default::default()
                         },
                     ],
                     schemas: vec![],
@@ -92,6 +95,7 @@ fn mixed_manifest() -> Manifest {
                     luau_type: "string".to_string(),
                     required: true,
                     description: Some("File path".to_string()),
+                    ..Default::default()
                 }],
                 schemas: vec![],
                 output_schemas: vec![],
@@ -207,6 +211,9 @@ fn test_mcp_tool_docs_with_schemas() {
                     luau_type: "UserInput".to_string(),
                     required: true,
                     description: None,
+                    field_type: FieldType::Object {
+                        schema: "UserInput".to_string(),
+                    },
                 }],
                 schemas: vec![SchemaDef {
                     name: "UserInput".to_string(),

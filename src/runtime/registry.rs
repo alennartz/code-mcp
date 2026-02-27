@@ -1026,8 +1026,7 @@ mod tests {
         register_functions(&sb, &manifest, handler, creds, counter, None).unwrap();
 
         // Only pass limit — api_version is frozen
-        sb.eval::<Value>(r#"sdk.list_items({ limit = 5 })"#)
-            .unwrap();
+        sb.eval::<Value>(r"sdk.list_items({ limit = 5 })").unwrap();
 
         let query = captured_query.lock().unwrap().clone();
         assert!(
@@ -1190,6 +1189,7 @@ mod tests {
                             luau_type: "string".to_string(),
                             required: true,
                             description: Some("File path".to_string()),
+                            ..Default::default()
                         }],
                         schemas: vec![],
                         output_schemas: vec![],
@@ -1203,6 +1203,7 @@ mod tests {
                             luau_type: "string".to_string(),
                             required: true,
                             description: Some("Directory path".to_string()),
+                            ..Default::default()
                         }],
                         schemas: vec![],
                         output_schemas: vec![],

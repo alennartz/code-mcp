@@ -139,8 +139,9 @@ async fn connect_one(config: &McpServerResolvedConfig) -> anyhow::Result<Service
 impl McpClientManager {
     /// Connect to all configured upstream MCP servers.
     ///
-    /// Returns an error if any connection fails. On error, servers that were
-    /// successfully connected are closed before returning.
+    /// If a server fails to connect, logs a warning and continues with the
+    /// remaining servers. Returns a manager with whatever connections succeeded
+    /// (possibly empty).
     pub async fn connect_all(
         configs: HashMap<String, McpServerResolvedConfig>,
     ) -> anyhow::Result<Self> {
@@ -158,13 +159,7 @@ impl McpClientManager {
                     );
                 }
                 Err(e) => {
-                    // Close any successfully-connected servers before returning
-                    for client in clients.values() {
-                        client.lock().await.service.close().await;
-                    }
-                    return Err(anyhow::anyhow!(
-                        "failed to connect to MCP server '{name}': {e}"
-                    ));
+                    eprintln!("MCP: failed to connect to '{name}', skipping: {e}");
                 }
             }
         }
@@ -177,6 +172,24 @@ impl McpClientManager {
         Self {
             clients: HashMap::new(),
         }
+    }
+
+    /// Create a manager from a pre-connected `RunningService`.
+    ///
+    /// Useful for testing with in-process MCP servers (e.g. via `tokio::io::duplex`).
+    /// Reconnection is not supported for services created this way.
+    pub fn from_running_service(name: &str, service: RunningService<RoleClient, ()>) -> Self {
+        let handle = McpClientHandle {
+            service: ServiceHandle::Stdio(service),
+            config: McpServerResolvedConfig::Stdio {
+                command: String::new(),
+                args: vec![],
+                env: HashMap::new(),
+            },
+        };
+        let mut clients = HashMap::new();
+        clients.insert(name.to_string(), Arc::new(Mutex::new(handle)));
+        Self { clients }
     }
 
     /// Returns the names of all connected servers.
@@ -248,11 +261,13 @@ impl McpClientManager {
             Ok(result) => Ok(result),
             Err(e) if is_transport_error(&e) || guard.service.is_closed() => {
                 // Transport failure: attempt reconnect
+                eprintln!("MCP: reconnecting to '{server}' after transport error...");
                 let config = guard.config.clone();
                 guard.service.close().await;
 
                 match connect_one(&config).await {
                     Ok(new_handle) => {
+                        eprintln!("MCP: reconnected to '{server}'");
                         guard.service = new_handle;
                         // Retry the call
                         let retry_params = CallToolRequestParams {
@@ -272,9 +287,12 @@ impl McpClientManager {
                                 )
                             })
                     }
-                    Err(reconnect_err) => Err(anyhow::anyhow!(
-                        "reconnect to '{server}' failed (original error: {e}): {reconnect_err}"
-                    )),
+                    Err(reconnect_err) => {
+                        eprintln!("MCP: reconnect to '{server}' failed: {reconnect_err}");
+                        Err(anyhow::anyhow!(
+                            "reconnect to '{server}' failed (original error: {e}): {reconnect_err}"
+                        ))
+                    }
                 }
             }
             Err(e) => Err(anyhow::anyhow!("call_tool to '{server}' failed: {e}")),
@@ -417,7 +435,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn connect_all_bad_command_fails() {
+    async fn connect_all_bad_command_warns_and_continues() {
         let mut configs = HashMap::new();
         configs.insert(
             "bad".to_string(),
@@ -427,12 +445,30 @@ mod tests {
                 env: HashMap::new(),
             },
         );
-        let result = McpClientManager::connect_all(configs).await;
-        assert!(result.is_err());
-        let msg = result.unwrap_err().to_string();
-        assert!(
-            msg.contains("bad"),
-            "error should name the failing server: {msg}"
+        // Should succeed (with warning to stderr) but have no clients
+        let manager = McpClientManager::connect_all(configs).await.unwrap();
+        assert!(manager.is_empty());
+    }
+
+    #[tokio::test]
+    async fn connect_all_partial_failure_continues() {
+        let mut configs = HashMap::new();
+        configs.insert(
+            "bad".to_string(),
+            McpServerResolvedConfig::Stdio {
+                command: "/nonexistent".to_string(),
+                args: vec![],
+                env: HashMap::new(),
+            },
         );
+        configs.insert(
+            "also_bad".to_string(),
+            McpServerResolvedConfig::Http {
+                url: "http://127.0.0.1:1/nonexistent".to_string(),
+            },
+        );
+        // Both fail, but connect_all should succeed with 0 clients
+        let manager = McpClientManager::connect_all(configs).await.unwrap();
+        assert!(manager.is_empty());
     }
 }
