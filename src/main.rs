@@ -349,6 +349,7 @@ async fn serve(args: ServeArgs) -> anyhow::Result<()> {
         args.auth,
         config,
         args.output_config,
+        Arc::new(toolscript::runtime::mcp_client::McpClientManager::empty()),
     );
 
     match args.transport.as_str() {

@@ -17,6 +17,7 @@ use crate::codegen::annotations::render_function_docs;
 use crate::codegen::manifest::Manifest;
 use crate::runtime::executor::{ExecutorConfig, OutputConfig, ScriptExecutor};
 use crate::runtime::http::{AuthCredentialsMap, HttpHandler};
+use crate::runtime::mcp_client::McpClientManager;
 
 /// The MCP server struct that holds all state needed to serve documentation tools
 /// and execute scripts.
@@ -39,6 +40,7 @@ impl ToolScriptServer {
         auth: AuthCredentialsMap,
         config: ExecutorConfig,
         output_config: Option<OutputConfig>,
+        mcp_client: Arc<McpClientManager>,
     ) -> Self {
         // Pre-render all annotations into caches
         let annotation_cache: HashMap<String, String> = manifest
@@ -47,7 +49,8 @@ impl ToolScriptServer {
             .map(|f| (f.name.clone(), render_function_docs(f, &manifest.schemas)))
             .collect();
 
-        let executor = ScriptExecutor::new(manifest.clone(), handler, config, output_config);
+        let executor =
+            ScriptExecutor::new(manifest.clone(), handler, config, output_config, mcp_client);
 
         Self {
             manifest,
@@ -286,6 +289,7 @@ mod tests {
             AuthCredentialsMap::new(),
             ExecutorConfig::default(),
             None,
+            Arc::new(McpClientManager::empty()),
         )
     }
 
@@ -377,6 +381,7 @@ mod tests {
             AuthCredentialsMap::new(),
             ExecutorConfig::default(),
             None,
+            Arc::new(McpClientManager::empty()),
         );
 
         // Docs (annotation cache) should not mention frozen param
@@ -406,6 +411,7 @@ mod tests {
             AuthCredentialsMap::new(),
             ExecutorConfig::default(),
             None,
+            Arc::new(McpClientManager::empty()),
         );
 
         // Searching for "limit" should NOT match on the frozen param
@@ -458,6 +464,7 @@ mod tests {
                 dir: output_dir.path().to_path_buf(),
                 max_bytes: 50 * 1024 * 1024,
             }),
+            Arc::new(McpClientManager::empty()),
         );
 
         let merged_auth = AuthCredentialsMap::new();
