@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write;
 
+use super::luau_types::{field_type_to_luau, render_enum_type};
 use super::manifest::{FieldType, FunctionDef, Manifest, McpToolDef, ParamType, SchemaDef};
 
 /// Render a Luau type-annotated documentation block for a single function.
@@ -465,42 +466,6 @@ fn param_type_to_luau(param_type: &ParamType) -> String {
         ParamType::Integer | ParamType::Number => "number".to_string(),
         ParamType::Boolean => "boolean".to_string(),
     }
-}
-
-/// Convert a `FieldType` to its Luau type name.
-fn field_type_to_luau(field_type: &FieldType) -> String {
-    match field_type {
-        FieldType::String => "string".to_string(),
-        FieldType::Integer | FieldType::Number => "number".to_string(),
-        FieldType::Boolean => "boolean".to_string(),
-        FieldType::Array { items } => format!("{{{}}}", field_type_to_luau(items)),
-        FieldType::Object { schema } => schema.clone(),
-        FieldType::InlineObject { fields } => {
-            let entries: Vec<String> = fields
-                .iter()
-                .map(|f| {
-                    let type_str = f.enum_values.as_ref().map_or_else(
-                        || field_type_to_luau(&f.field_type),
-                        |ev| render_enum_type(ev),
-                    );
-                    let optional = if !f.required || f.nullable { "?" } else { "" };
-                    format!("{}: {type_str}{optional}", f.name)
-                })
-                .collect();
-            format!("{{ {} }}", entries.join(", "))
-        }
-        FieldType::Map { value } => format!("{{ [string]: {} }}", field_type_to_luau(value)),
-    }
-}
-
-/// Render an enum type as a Luau literal union: `"val1" | "val2" | "val3"`.
-fn render_enum_type(values: &[String]) -> String {
-    let inner = values
-        .iter()
-        .map(|v| format!("\"{v}\""))
-        .collect::<Vec<_>>()
-        .join(" | ");
-    format!("({inner})")
 }
 
 #[cfg(test)]

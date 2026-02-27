@@ -37,6 +37,11 @@ impl McpServerResolvedConfig {
                 env: entry.env.clone().unwrap_or_default(),
             })
         } else if let Some(url) = &entry.url {
+            // NOTE: the `transport` field ("sse" vs "streamable-http") is validated in
+            // config but not threaded through here. `StreamableHttpClientTransport` from
+            // rmcp handles SSE streaming natively, so both values use the same client.
+            // If a future rmcp version requires a distinct legacy-SSE client, this is
+            // where the distinction would need to be made.
             Ok(Self::Http { url: url.clone() })
         } else {
             anyhow::bail!("config entry must have either 'command' or 'url'")
