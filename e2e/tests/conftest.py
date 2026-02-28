@@ -36,6 +36,11 @@ def _wait_for_http(url: str, timeout: float = 10.0) -> None:
             resp = httpx.get(url, timeout=2.0)
             if resp.status_code < 500:
                 return
+        except httpx.ReadTimeout:
+            # Server accepted the connection and sent headers but the
+            # response body is streaming (e.g. SSE).  That means the
+            # server is up — treat this as success.
+            return
         except httpx.ConnectError:
             pass
         time.sleep(0.1)
