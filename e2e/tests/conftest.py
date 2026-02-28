@@ -380,12 +380,12 @@ async def mcp_sse_session(
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
     )
-    _wait_for_http(f"http://127.0.0.1:{port}/mcp", timeout=10.0)
+    _wait_for_http(f"http://127.0.0.1:{port}/sse", timeout=10.0)
 
     env = {"PATH": os.environ.get("PATH", "/usr/bin:/bin")}
     server_params = StdioServerParameters(
         command=str(toolscript_binary),
-        args=["run", "--mcp", f"sse_mock=http://127.0.0.1:{port}/mcp"],
+        args=["run", "--mcp", f"sse_mock=http://127.0.0.1:{port}/sse"],
         env=env,
     )
     session_ready: asyncio.Future[ClientSession] = asyncio.get_event_loop().create_future()
