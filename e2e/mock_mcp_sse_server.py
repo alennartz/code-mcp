@@ -1,7 +1,7 @@
-"""Mock MCP server that serves over SSE transport for e2e testing.
+"""Mock MCP server that serves over Streamable HTTP transport for e2e testing.
 
-Uses FastMCP's sse_app() to create a Starlette ASGI app that speaks
-the legacy SSE transport, then runs it with uvicorn.
+Uses FastMCP's streamable_http_app() to create a Starlette ASGI app,
+then runs it with uvicorn.
 
 Usage: python mock_mcp_sse_server.py <port>
 """
@@ -34,5 +34,5 @@ def no_params() -> str:
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8765
-    app = mcp.sse_app()
+    app = mcp.streamable_http_app()
     uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
