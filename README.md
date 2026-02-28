@@ -394,6 +394,31 @@ docker run -p 8080:8080 toolscript \
   --transport sse --port 8080
 ```
 
+### Docker and MCP servers
+
+The Docker image is built from `scratch` — it contains only the statically linked binary and CA certificates. This means it is designed for **hosted, HTTP-based deployments** where both the downstream transport (how clients connect to toolscript) and any upstream MCP servers use HTTP.
+
+**HTTP upstream MCP servers work out of the box:**
+
+```bash
+docker run -p 8080:8080 toolscript \
+  --mcp remote=https://mcp.example.com/mcp \
+  --transport sse --port 8080
+```
+
+**Stdio upstream MCP servers will not work** in the default image. Stdio mode spawns a child process (e.g. `npx`, `python`), and those runtimes are not present in the scratch image. This is by design — stdio MCP servers are intended for single-user local scenarios where toolscript runs directly on the host, not for hosted multi-user deployments.
+
+If you need stdio MCP servers in a container, extend the image with the required runtime:
+
+```dockerfile
+FROM node:20-slim
+COPY --from=toolscript:latest /toolscript /toolscript
+RUN npm install -g @modelcontextprotocol/server-filesystem
+ENTRYPOINT ["/toolscript", "run"]
+```
+
+In practice, most containerized deployments should use HTTP-based upstream MCP servers. If an upstream server only supports stdio, consider running it behind an HTTP adapter or as a sidecar exposing an HTTP endpoint.
+
 ## Building from Source
 
 ```bash
